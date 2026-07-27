@@ -5,7 +5,7 @@ import { useFinanceData } from '../hooks/useData'
 import { PageHeader, Spinner, ErrorBox, Section, Empty, StatCard, ProgressBar } from '../components/ui'
 import { ChartCard, TrendLines, DataTable } from '../components/charts'
 import { useChartColors } from '../lib/chartTheme'
-import { milestone, MONTHS_FULL } from '../lib/calc'
+import { milestone } from '../lib/calc'
 import { fmt0, fmtPct, fmtDate, fmtDuration } from '../lib/format'
 
 export default function Milestone() {
@@ -178,48 +178,6 @@ export default function Milestone() {
           />
         </ChartCard>
 
-        {/* ---------- คำแนะนำ ---------- */}
-        <Section title="สิ่งที่ควรทำต่อ">
-          <ul className="space-y-2.5 text-sm text-slate-700 dark:text-slate-300">
-            {m.onTrack ? (
-              <>
-                <li className="flex gap-2.5">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500" />
-                  แผนที่วางไว้พาไปถึงเป้าได้ — สิ่งที่สำคัญที่สุดตอนนี้คือ<strong>ทำให้ได้จริงตามที่กรอก</strong>
-                  {' '}เข้ามาอัปเดตตัวเลขจริงทุกเดือนเพื่อให้เส้นทึบไม่หลุดจากเส้นประ
-                </li>
-                <li className="flex gap-2.5">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500" />
-                  ส่วนเกินเป้า {fmt0(-m.gap)} บาท คือ buffer — เผื่อไว้สำหรับเดือนที่รายรับสะดุด
-                  หรือจะขยับเป้าหมายให้สูงขึ้นก็ได้
-                </li>
-              </>
-            ) : (
-              <>
-                <li className="flex gap-2.5">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500" />
-                  เพิ่มยอดออมอีกเดือนละ <strong className="num">{fmt0(m.gap / Math.max(1, m.monthsLeft))}</strong> บาท
-                  หรือหารายรับเพิ่มในจำนวนใกล้เคียงกัน
-                </li>
-                <li className="flex gap-2.5">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500" />
-                  ลองดูหน้า <Link to="/actual" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">แผนการเงิน</Link>
-                  {' '}ว่ารายจ่ายก้อนไหนตัดได้ — ทุก 1,000 บาทที่ลดได้ คือ 1,000 บาทที่ออมเพิ่มได้ทันที
-                </li>
-                <li className="flex gap-2.5">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500" />
-                  หรือปรับเป้าหมายให้สมจริงขึ้นที่หน้า
-                  {' '}<Link to="/settings" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">ตั้งค่า</Link>
-                  {' '}— เป้าที่ไปถึงได้จริงดีกว่าเป้าที่สวยแต่ไม่มีวันถึง
-                </li>
-              </>
-            )}
-            <li className="flex gap-2.5">
-              <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" />
-              เดือนถัดไปที่ต้องกรอกคือ <strong>{MONTHS_FULL[m.now.month - 1]} {m.now.year}</strong>
-            </li>
-          </ul>
-        </Section>
       </div>
     </>
   )

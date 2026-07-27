@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef } from 'react'
-import { Plus, Pencil, TrendingUp, Info, Trash2 } from 'lucide-react'
+import { Plus, Pencil, TrendingUp, Trash2, Coins } from 'lucide-react'
 import { useFinanceData, useUpsertRow, useDeleteRow, useSetSetting } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
@@ -35,6 +35,11 @@ export default function Portfolio() {
         title="พอร์ตลงทุน"
         subtitle="ราคาตลาดกรอกเอง — ใช้ดูกำไร/ขาดทุน และนำไปคิดความมั่งคั่งสุทธิ"
       >
+        {summary.items.length > 0 && (
+          <button onClick={() => setRealCostModal(true)} className="btn-outline">
+            <Coins size={16} /> <span className="hidden sm:inline">ตั้งต้นทุนแท้จริง</span>
+          </button>
+        )}
         <button onClick={() => setEditing({})} className="btn-primary">
           <Plus size={16} /> เพิ่มสินทรัพย์
         </button>
@@ -68,16 +73,6 @@ export default function Portfolio() {
               tone="neutral"
               hint={`กำไร ${summary.items.filter((i) => i.gain > 0).length} · ขาดทุน ${summary.items.filter((i) => i.gain < 0).length}`}
             />
-          </div>
-
-          <div className="flex flex-wrap items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">
-            <Info size={17} className="mt-px shrink-0" />
-            <p className="min-w-0 flex-1">
-              ถ้าต้นทุนที่จ่ายจริงต่างจากผลรวมของแต่ละรายการ (เช่น มีการซื้อขายหลายรอบ) กดปุ่มข้างขวาเพื่อระบุต้นทุนแท้จริงเอง
-            </p>
-            <button onClick={() => setRealCostModal(true)} className="btn-outline shrink-0 !border-blue-300 !text-blue-800 dark:!border-blue-800 dark:!text-blue-300">
-              ตั้งต้นทุนแท้จริง
-            </button>
           </div>
 
           <Section title="รายการในพอร์ต" subtitle="เรียงจากกำไรมากไปน้อย">
