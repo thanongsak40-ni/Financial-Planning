@@ -49,7 +49,7 @@ export default function Tax() {
 
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="รายรับทั้งปี" value={income} tone="income" hint="จากหน้าบันทึกจริง" />
+          <StatCard label="รายรับทั้งปี" value={income} tone="income" hint="จากหน้าแผนการเงิน" />
           <StatCard label="ค่าลดหย่อนที่กรอกไว้" value={summary.totalDeduction} tone="saving" />
           <StatCard
             label="ภาษีที่ต้องเสีย (ประมาณ)"

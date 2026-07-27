@@ -163,7 +163,7 @@ export default function Grid() {
   return (
     <>
       <PageHeader
-        title="บันทึกจริง"
+        title="แผนการเงิน"
         subtitle={`ตัวเลขรายรับ–รายจ่าย–เงินออม รายเดือน ปี ${year} — คลิกจุดซ้ายช่องเพื่อทำเครื่องหมายสถานะ`}
       >
         <button onClick={() => setShowArchived((v) => !v)} className="btn-outline" title="แสดง/ซ่อนรายการที่เก็บเข้าคลัง">
@@ -376,7 +376,7 @@ export default function Grid() {
                 <td className="bg-slate-50 dark:bg-slate-900" />
               </tr>
 
-              {/* หมายเหตุรายเดือน (เฉพาะหน้าบันทึกจริง) */}
+              {/* หมายเหตุรายเดือน (เฉพาะหน้าแผนการเงิน) */}
               {(
                 <tr className="bg-white dark:bg-slate-900">
                   <td className="sticky left-0 z-10 bg-white px-2 py-1.5 text-xs text-slate-500 dark:bg-slate-900 dark:text-slate-400">

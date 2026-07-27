@@ -48,7 +48,7 @@ export default function Allocation() {
 
       {alloc.total === 0 ? (
         <Section>
-          <Empty icon={PieChart} title="ยังไม่มียอดสะสมในมุมมองนี้" hint="ลองเปลี่ยนมุมมอง หรือกรอกข้อมูลเงินออมที่หน้าบันทึกจริง" />
+          <Empty icon={PieChart} title="ยังไม่มียอดสะสมในมุมมองนี้" hint="ลองเปลี่ยนมุมมอง หรือกรอกข้อมูลเงินออมที่หน้าแผนการเงิน" />
         </Section>
       ) : (
         <div className="space-y-5">

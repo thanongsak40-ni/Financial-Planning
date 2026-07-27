@@ -13,7 +13,7 @@ const NAV = [
   { group: 'ภาพรวม', items: [
     { to: '/', icon: LayoutDashboard, label: 'ภาพรวม', end: true },
     { to: '/milestone', icon: Rocket, label: 'เส้นทางสู่เป้า' },
-    { to: '/actual', icon: NotebookPen, label: 'บันทึกจริง' },
+    { to: '/actual', icon: NotebookPen, label: 'แผนการเงิน' },
   ]},
   { group: 'ความมั่งคั่ง', items: [
     { to: '/savings', icon: PiggyBank, label: 'เงินสะสม' },

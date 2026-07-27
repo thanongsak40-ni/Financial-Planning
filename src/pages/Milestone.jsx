@@ -203,7 +203,7 @@ export default function Milestone() {
                 </li>
                 <li className="flex gap-2.5">
                   <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500" />
-                  ลองดูหน้า <Link to="/actual" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">บันทึกจริง</Link>
+                  ลองดูหน้า <Link to="/actual" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">แผนการเงิน</Link>
                   {' '}ว่ารายจ่ายก้อนไหนตัดได้ — ทุก 1,000 บาทที่ลดได้ คือ 1,000 บาทที่ออมเพิ่มได้ทันที
                 </li>
                 <li className="flex gap-2.5">
