@@ -9,7 +9,6 @@ import Dashboard from './pages/Dashboard'
 import Milestone from './pages/Milestone'
 import Grid from './pages/Grid'
 import Savings from './pages/Savings'
-import Allocation from './pages/Allocation'
 import Portfolio from './pages/Portfolio'
 import Balance from './pages/Balance'
 import Goals from './pages/Goals'
@@ -47,7 +46,8 @@ export default function App() {
                   <Route path="milestone" element={<Milestone />} />
                   <Route path="actual" element={<Grid />} />
                   <Route path="savings" element={<Savings />} />
-                  <Route path="allocation" element={<Allocation />} />
+                  {/* หน้าสัดส่วนถูกยุบรวมเข้าหน้าเงินสะสม — คนที่บุ๊กมาร์กลิงก์เก่าไว้ยังเข้าได้ */}
+                  <Route path="allocation" element={<Navigate to="/savings" replace />} />
                   <Route path="portfolio" element={<Portfolio />} />
                   <Route path="balance" element={<Balance />} />
                   <Route path="goals" element={<Goals />} />

@@ -3,21 +3,42 @@ import { PiggyBank, Pencil, Info } from 'lucide-react'
 import { useFinanceData, useSaveCarryOver } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
-import { PageHeader, Spinner, ErrorBox, Section, Empty, StatCard, Modal, Field, MoneyInput, Money } from '../components/ui'
-import { savingsAccum } from '../lib/calc'
+import { PageHeader, Spinner, ErrorBox, Section, Empty, StatCard, Modal, Field, MoneyInput, Money, Tabs, ProgressBar } from '../components/ui'
+import { ChartCard, DonutChart, DataTable } from '../components/charts'
+import { useChartColors, capSeries } from '../lib/chartTheme'
+import { savingsAccum, allocation } from '../lib/calc'
 import { fmt0, fmtPct } from '../lib/format'
+
+/** มุมมองที่ใช้กับโดนัทและแถบความเสี่ยง — ตารางด้านล่างแสดงครบทุกมุมมองอยู่แล้ว */
+const VIEWS = [
+  { value: 'opening', label: 'ต้นปี' },
+  { value: 'current', label: 'ปัจจุบัน' },
+  { value: 'projected', label: 'สิ้นปี' },
+]
 
 export default function Savings() {
   const { year, thisYear } = useYear()
   const { data, isLoading, error, refetch } = useFinanceData()
   const saveCarryOver = useSaveCarryOver()
   const toast = useToast()
+  const colors = useChartColors()
   const [editing, setEditing] = useState(null)
+  const [view, setView] = useState('current')
 
   const rows = useMemo(
     () => (data ? savingsAccum(year, data.categories, data.entries, data.carryOver) : []),
     [data, year],
   )
+
+  // สัดส่วน + สมดุลความเสี่ยง คิดจากข้อมูลชุดเดียวกับตาราง แค่คนละมุมมอง
+  const { alloc, risk } = useMemo(() => {
+    const a = allocation(rows, view)
+    const key = view === 'opening' ? 'opening' : view === 'projected' ? 'projected' : 'current'
+    const pick = (r) => Math.max(0, r[key] ?? r.projected)
+    const invest = rows.filter((r) => r.is_investment).reduce((s, r) => s + pick(r), 0)
+    const safe = rows.filter((r) => !r.is_investment).reduce((s, r) => s + pick(r), 0)
+    return { alloc: a, risk: { invest, safe, total: invest + safe } }
+  }, [rows, view])
 
   if (isLoading) return <Spinner />
   if (error) return <ErrorBox error={error} onRetry={refetch} />
@@ -32,13 +53,17 @@ export default function Savings() {
     { opening: 0, current: 0, projected: 0, added: 0 },
   )
   const isFuture = year > thisYear
+  const capped = capSeries(alloc.items, 6)
+  const viewLabel = { opening: `ต้นปี ${year}`, current: 'ปัจจุบัน', projected: `สิ้นปี ${year}` }[view]
 
   return (
     <>
       <PageHeader
-        title="เงินออม/ลงทุนสะสม"
+        title="เงินสะสม"
         subtitle={`ปี ${year} — ยอดสะสมนับจาก "เงินที่ใส่เข้าไปจริง" ไม่ใช่ราคาตลาด (ราคาตลาดดูที่หน้าพอร์ตลงทุน)`}
-      />
+      >
+        {rows.length > 0 && <Tabs value={view} onChange={setView} options={VIEWS} />}
+      </PageHeader>
 
       {rows.length === 0 ? (
         <Section>
@@ -64,6 +89,77 @@ export default function Savings() {
               กดไอคอนดินสอเพื่อระบุยอดจริงเองได้ (แนะนำให้ทำครั้งเดียวตอนเริ่มใช้ระบบ)
             </p>
           </div>
+
+          {/* ---------- สัดส่วน + สมดุลความเสี่ยง (ตามมุมมองที่เลือกด้านบน) ---------- */}
+          {alloc.total > 0 && (
+            <div className="grid gap-4 xl:grid-cols-2">
+              <ChartCard
+                title="สัดส่วนแต่ละรายการ"
+                subtitle={`มุมมอง${viewLabel} · รวม ${fmt0(alloc.total)} บาท${capped.folded > 0 ? ` · รวม ${capped.folded} รายการเล็กเป็น "อื่น ๆ"` : ''}`}
+                height={300}
+                table={
+                  <DataTable
+                    columns={[
+                      { key: 'name', label: 'รายการ' },
+                      { key: 'value', label: 'ยอด', align: 'right', render: (r) => fmt0(r.value) },
+                      { key: 'pct', label: '%', align: 'right', render: (r) => fmtPct(r.pct) },
+                    ]}
+                    rows={alloc.items.map((i) => ({ ...i, key: i.name }))}
+                  />
+                }
+              >
+                <DonutChart
+                  data={capped.items}
+                  colors={colors.categorical}
+                  total={alloc.total}
+                  centerLabel="รวม"
+                  centerValue={alloc.total}
+                  height={300}
+                />
+              </ChartCard>
+
+              <Section title="สมดุลความเสี่ยง" subtitle={`มุมมอง${viewLabel}`}>
+                <div className="space-y-4">
+                  <div>
+                    <div className="mb-1.5 flex items-baseline justify-between text-sm">
+                      <span className="flex items-center gap-1.5">
+                        <span className="size-2.5 rounded-full" style={{ background: colors.section.income }} />
+                        ออมความเสี่ยงต่ำ
+                      </span>
+                      <span className="num font-semibold">
+                        {fmt0(risk.safe)}
+                        <span className="ml-1.5 text-xs font-normal text-slate-400">
+                          {fmtPct(risk.total ? risk.safe / risk.total : 0, 0)}
+                        </span>
+                      </span>
+                    </div>
+                    <ProgressBar value={risk.safe} max={risk.total} tone="income" showPct={false} height="h-2.5" />
+                  </div>
+
+                  <div>
+                    <div className="mb-1.5 flex items-baseline justify-between text-sm">
+                      <span className="flex items-center gap-1.5">
+                        <span className="size-2.5 rounded-full" style={{ background: colors.section.saving }} />
+                        ลงทุน (มูลค่าขึ้นลงตามตลาด)
+                      </span>
+                      <span className="num font-semibold">
+                        {fmt0(risk.invest)}
+                        <span className="ml-1.5 text-xs font-normal text-slate-400">
+                          {fmtPct(risk.total ? risk.invest / risk.total : 0, 0)}
+                        </span>
+                      </span>
+                    </div>
+                    <ProgressBar value={risk.invest} max={risk.total} tone="saving" showPct={false} height="h-2.5" />
+                  </div>
+                </div>
+
+                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                  ไม่มีสัดส่วนที่ถูกต้องเพียงแบบเดียว — โดยทั่วไปยิ่งอายุน้อยและมีเงินสำรองฉุกเฉินครบแล้ว
+                  ก็รับความเสี่ยงในฝั่งลงทุนได้มากขึ้น
+                </p>
+              </Section>
+            </div>
+          )}
 
           <Section title={`ยอดสะสมรายรายการ ปี ${year}`}>
             <div className="overflow-x-auto">
