@@ -1,29 +1,63 @@
 import { useMemo, useState, useRef } from 'react'
-import { Plus, Pencil, Landmark, Trash2, Lock, Calculator } from 'lucide-react'
-import { useFinanceData, useUpsertRow, useDeleteRow } from '../hooks/useData'
+import { Plus, Pencil, Landmark, Trash2, Lock, Calculator, History, Target, Droplets } from 'lucide-react'
+import {
+  useFinanceData, useUpsertRow, useDeleteRow,
+  useSaveNetWorthSnapshot, useAutoNetWorthSnapshot,
+} from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, Section, Empty, StatCard, Modal, Field, MoneyInput, ConfirmButton, ProgressBar } from '../components/ui'
-import { savingsAccum, totalAccum, balanceSheet, payoffSchedule } from '../lib/calc'
-import { fmt0, fmtPct, fmtDuration } from '../lib/format'
+import { DonutChart, TrendLines } from '../components/charts'
+import { useChartColors } from '../lib/chartTheme'
+import {
+  savingsAccum, totalAccum, balanceSheet, payoffSchedule, dashboard,
+  liquidityBreakdown, wealthRatios, netWorthGoal, LIQUIDITY,
+} from '../lib/calc'
+import { fmt0, fmtPct, fmtDuration, fmtDate, fmtSigned } from '../lib/format'
 
 export default function Balance() {
   const { year } = useYear()
   const { data, isLoading, error, refetch } = useFinanceData()
   const upsert = useUpsertRow('assets')
   const del = useDeleteRow('assets')
+  const saveSnapshot = useSaveNetWorthSnapshot()
+  const colors = useChartColors()
   const toast = useToast()
   const [editing, setEditing] = useState(null)
 
-  const bs = useMemo(() => {
+  const view = useMemo(() => {
     if (!data) return null
     const accum = savingsAccum(year, data.categories, data.entries, data.carryOver)
-    return balanceSheet(data.assets ?? [], data.portfolio ?? [], totalAccum(accum))
+    const bs = balanceSheet(data.assets ?? [], data.portfolio ?? [], totalAccum(accum))
+    const savingCats = (data.categories ?? []).filter((c) => c.section === 'saving')
+    const liq = liquidityBreakdown(accum, savingCats, bs.assets)
+    const d = dashboard(year, data)
+    return {
+      bs,
+      liq,
+      ratios: wealthRatios({
+        netWorth: bs.netWorth,
+        totalAsset: bs.totalAsset,
+        totalLiability: bs.totalLiability,
+        liquid: liq.liquid,
+        avgExpense: d.health.avgExpense,
+        annualIncome: d.actual.sectionTotal.income,
+      }),
+      goal: netWorthGoal(data.profile, bs.netWorth),
+    }
   }, [data, year])
+
+  // เก็บสแนปช็อตครั้งแรกของวันให้อัตโนมัติ จะได้มีประวัติโดยไม่ต้องกดเอง
+  useAutoNetWorthSnapshot(
+    data?.netWorthSnapshots,
+    view && { totalAsset: view.bs.totalAsset, totalLiability: view.bs.totalLiability, netWorth: view.bs.netWorth },
+  )
 
   if (isLoading) return <Spinner />
   if (error) return <ErrorBox error={error} onRetry={refetch} />
 
+  const { bs, liq, ratios, goal } = view
+  const snaps = data.netWorthSnapshots ?? []
   const hasDebtPlan = bs.liabilities.some((l) => l.interest_rate > 0 && l.min_payment > 0)
 
   return (
@@ -51,6 +85,120 @@ export default function Balance() {
             hint={bs.totalAsset > 0 ? `หนี้คิดเป็น ${fmtPct(bs.totalLiability / bs.totalAsset, 0)} ของสินทรัพย์` : undefined}
           />
         </div>
+
+        {/* ---------- เป้าหมายความมั่งคั่งสุทธิ ---------- */}
+        {goal.configured && !goal.expired && (
+          <div className={`card-pad border-2 ${goal.reached ? 'border-emerald-300 bg-emerald-50/60 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-indigo-200 dark:border-indigo-900'}`}>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <span className="flex items-center gap-2 font-semibold">
+                <Target size={17} className={goal.reached ? 'text-emerald-600' : 'text-indigo-500'} />
+                เป้าหมายความมั่งคั่งสุทธิ ปี {goal.targetYear}
+              </span>
+              <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">{fmtPct(goal.progress, 0)}</span>
+            </div>
+            <ProgressBar value={bs.netWorth} max={goal.target} tone={goal.reached ? 'income' : 'brand'} showPct={false} height="h-3" />
+            <div className="num mt-1.5 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span>{fmt0(bs.netWorth)}</span>
+              <span>{fmt0(goal.target)}</span>
+            </div>
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+              {goal.reached ? (
+                <>ถึงเป้าแล้ว เกินอยู่ <strong className="num">{fmt0(bs.netWorth - goal.target)}</strong> บาท</>
+              ) : (
+                <>
+                  ยังขาดอีก <strong className="num">{fmt0(goal.remain)}</strong> บาท ·
+                  เหลือ {fmtDuration(goal.monthsLeft)} · ต้องเพิ่มเดือนละประมาณ{' '}
+                  <strong className="num">{fmt0(goal.perMonth)}</strong> บาท
+                </>
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* ---------- สภาพคล่อง ---------- */}
+        {liq.total > 0 && (
+          <Section
+            title={<span className="flex items-center gap-2"><Droplets size={17} className="text-blue-500" /> สินทรัพย์แบ่งตามสภาพคล่อง</span>}
+            subtitle="เงินก้อนไหนแตะได้จริงในยามจำเป็น — ตัวเลขรวมอย่างเดียวทำให้รู้สึกมั่งคั่งกว่าความเป็นจริง"
+          >
+            <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,15rem)_1fr]">
+              <div className="h-56">
+                <DonutChart
+                  data={liq.buckets.map((b) => ({ name: b.label, value: b.total }))}
+                  colors={colors.categorical}
+                  total={liq.total}
+                  centerLabel="ถอนได้ทันที"
+                  centerValue={liq.liquid}
+                  showLegend={false}
+                />
+              </div>
+              <ul className="space-y-3">
+                {liq.buckets.map((b, i) => (
+                  <li key={b.key}>
+                    <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="size-2.5 shrink-0 rounded-full" style={{ background: colors.categorical[i % colors.categorical.length] }} />
+                        <span className="font-medium">{b.label}</span>
+                      </span>
+                      <span className="shrink-0">
+                        <span className="num font-medium">{fmt0(b.total)}</span>
+                        <span className="num ml-2 text-xs text-slate-400">{fmtPct(b.weight, 0)}</span>
+                      </span>
+                    </div>
+                    <ProgressBar value={b.total} max={liq.total} tone="brand" showPct={false} height="h-1.5" />
+                    <p className="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500" title={b.items.map((x) => x.name).join(', ')}>
+                      {b.items.map((x) => x.name).join(' · ')}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+              เงินที่ถอนมาใช้ได้ทันทีมี <strong className="num">{fmt0(liq.liquid)}</strong> บาท
+              จากสินทรัพย์รวม <span className="num">{fmt0(liq.total)}</span> —
+              อีก <span className="num">{fmt0(liq.untouchable)}</span> บาท ({fmtPct(ratios.illiquidRatio, 0)})
+              ถูกล็อกหรืออยู่ในทรัพย์สินถาวรที่ขายเป็นเงินสดไม่ได้เร็ว
+            </p>
+          </Section>
+        )}
+
+        {/* ---------- อัตราส่วนสุขภาพความมั่งคั่ง ---------- */}
+        <div className="grid gap-3 lg:grid-cols-3">
+          <RatioCard
+            title="สภาพคล่องครอบคลุมรายจ่าย"
+            value={`${ratios.liquidityMonths.toFixed(1)} เดือน`}
+            good={ratios.liquidityMonths >= 6}
+            bar={{ value: ratios.liquidityMonths, max: 6 }}
+            hint="เกณฑ์ปลอดภัยคือ 6 เดือน — นับเฉพาะเงินที่ถอนได้ทันที"
+          />
+          <RatioCard
+            title="หนี้สินต่อสินทรัพย์"
+            value={fmtPct(ratios.debtToAsset)}
+            good={ratios.debtToAsset < 0.5}
+            bar={{ value: ratios.debtToAsset, max: 1 }}
+            hint="ต่ำกว่า 50% ถือว่าปลอดภัย"
+          />
+          <RatioCard
+            title="ความมั่งคั่งต่อรายได้ทั้งปี"
+            value={`${ratios.netWorthToIncome.toFixed(2)} เท่า`}
+            good={ratios.netWorthToIncome >= 1}
+            bar={{ value: ratios.netWorthToIncome, max: 3 }}
+            hint="ยิ่งสูงยิ่งใกล้อิสระทางการเงิน — เกิน 1 เท่าคือมีทรัพย์สินมากกว่ารายได้หนึ่งปี"
+          />
+        </div>
+
+        {/* ---------- ประวัติความมั่งคั่งสุทธิ ---------- */}
+        <NetWorthHistory
+          snapshots={snaps}
+          colors={colors}
+          onCapture={() =>
+            saveSnapshot.mutate(
+              { totalAsset: bs.totalAsset, totalLiability: bs.totalLiability, netWorth: bs.netWorth },
+              { onSuccess: () => toast.success('บันทึกความมั่งคั่งวันนี้แล้ว'), onError: (e) => toast.error(e.message) },
+            )
+          }
+          busy={saveSnapshot.isPending}
+        />
 
         <div className="grid gap-4 lg:grid-cols-2">
           {/* ---------- สินทรัพย์ ---------- */}
@@ -191,7 +339,7 @@ export default function Balance() {
 }
 
 function ItemModal({ state, portfolioTotal, onClose, onSave, onDelete }) {
-  const [form, setForm] = useState({ name: '', value: 0, kind: 'asset', from_portfolio: false, interest_rate: 0, min_payment: 0 })
+  const [form, setForm] = useState({ name: '', value: 0, kind: 'asset', from_portfolio: false, interest_rate: 0, min_payment: 0, liquidity: '' })
   const last = useRef(null)
 
   if (state && state !== last.current) {
@@ -203,6 +351,7 @@ function ItemModal({ state, portfolioTotal, onClose, onSave, onDelete }) {
       from_portfolio: Boolean(state.from_portfolio),
       interest_rate: Number(state.interest_rate) || 0,
       min_payment: Number(state.min_payment) || 0,
+      liquidity: state.liquidity || '',
     })
   }
   if (!state) return null
@@ -232,6 +381,7 @@ function ItemModal({ state, portfolioTotal, onClose, onSave, onDelete }) {
                   kind: form.kind,
                   value: form.from_portfolio ? 0 : form.value,
                   from_portfolio: form.from_portfolio,
+                  liquidity: !isLiability && form.liquidity ? form.liquidity : null,
                   interest_rate: isLiability && form.interest_rate > 0 ? form.interest_rate : null,
                   min_payment: isLiability && form.min_payment > 0 ? form.min_payment : null,
                 },
@@ -302,6 +452,17 @@ function ItemModal({ state, portfolioTotal, onClose, onSave, onDelete }) {
           </Field>
         )}
 
+        {!isLiability && (
+          <Field label="ระดับสภาพคล่อง" hint="ใช้แยกว่าเงินก้อนนี้เอามาใช้ได้เร็วแค่ไหน">
+            <select className="input" value={form.liquidity} onChange={(e) => set('liquidity', e.target.value)}>
+              <option value="">— ให้ระบบเดาให้ —</option>
+              {Object.entries(LIQUIDITY).map(([k, v]) => (
+                <option key={k} value={k}>{v.label} — {v.hint}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+
         {isLiability && (
           <>
             <div className="grid grid-cols-2 gap-3">
@@ -344,5 +505,82 @@ function PayoffPreview({ balance, rate, payment }) {
       <strong>{fmtDuration(p.months)}</strong> · ดอกเบี้ยรวมที่ต้องจ่าย{' '}
       <strong className="num text-rose-600 dark:text-rose-400">{fmt0(p.totalInterest)}</strong> บาท
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
+function RatioCard({ title, value, good, bar, hint }) {
+  return (
+    <div className="card-pad">
+      <p className="text-xs font-medium tracking-wide text-slate-500 uppercase dark:text-slate-400">{title}</p>
+      <p className={`mt-2 mb-2 text-2xl font-bold ${good ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+        {value}
+      </p>
+      <ProgressBar value={bar.value} max={bar.max} tone={good ? 'income' : 'brand'} showPct={false} />
+      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{hint}</p>
+    </div>
+  )
+}
+
+/** กราฟความมั่งคั่งสุทธิย้อนหลัง — เก็บอัตโนมัติวันละจุด */
+function NetWorthHistory({ snapshots, colors, onCapture, busy }) {
+  const header = (
+    <button onClick={onCapture} disabled={busy} className="btn-ghost text-sm">
+      <History size={14} /> บันทึกวันนี้
+    </button>
+  )
+
+  if (snapshots.length < 2) {
+    return (
+      <Section
+        title="ประวัติความมั่งคั่งสุทธิ"
+        subtitle="เก็บให้อัตโนมัติวันละ 1 จุดทุกครั้งที่เปิดหน้านี้"
+        right={header}
+      >
+        <div className="flex items-start gap-2.5 rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+          <History size={17} className="mt-px shrink-0" />
+          <p>
+            {snapshots.length === 0
+              ? 'ยังไม่มีประวัติ — ระบบจะเริ่มเก็บให้ตั้งแต่วันนี้ กลับมาดูอีกครั้งในวันถัดไปแล้วกราฟจะเริ่มขึ้น'
+              : `เก็บไว้แล้ว 1 จุด (${fmtDate(snapshots[0].captured_on)}) — พรุ่งนี้เปิดหน้านี้อีกครั้งกราฟจะเริ่มขึ้น`}
+          </p>
+        </div>
+      </Section>
+    )
+  }
+
+  const chartData = snapshots.map((s) => ({
+    label: fmtDate(s.captured_on),
+    netWorth: Number(s.net_worth),
+    asset: Number(s.total_asset),
+  }))
+  const first = chartData[0]
+  const last = chartData[chartData.length - 1]
+  const change = last.netWorth - first.netWorth
+
+  return (
+    <Section
+      title="ประวัติความมั่งคั่งสุทธิ"
+      subtitle={`${snapshots.length} จุด · ${first.label} → ${last.label}`}
+      right={
+        <span className="flex items-center gap-3">
+          <span className={`num text-sm font-semibold ${change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+            {fmtSigned(change)}
+          </span>
+          {header}
+        </span>
+      }
+    >
+      <div className="h-72">
+        <TrendLines
+          data={chartData}
+          series={[
+            { key: 'netWorth', name: 'ความมั่งคั่งสุทธิ', color: colors.section.saving, showDots: true },
+            { key: 'asset', name: 'สินทรัพย์รวม', color: colors.chrome.axis, dashed: true },
+          ]}
+        />
+      </div>
+    </Section>
   )
 }

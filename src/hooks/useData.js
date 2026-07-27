@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './useAuth'
@@ -19,6 +20,7 @@ const TABLES = [
   // optional = ถ้าตารางยังไม่มี (ยังไม่ได้รัน migration) ให้ถือว่าว่างเปล่า
   // แทนที่จะทำให้ทั้งแอปโหลดไม่ขึ้น
   ['snapshots', 'portfolio_snapshots', { order: ['captured_on', { ascending: true }], optional: true }],
+  ['netWorthSnapshots', 'net_worth_snapshots', { order: ['captured_on', { ascending: true }], optional: true }],
 ]
 
 async function fetchAll(userId) {
@@ -272,6 +274,53 @@ export function useSaveSnapshot() {
     await saveSnapshot(userId, totals)
     return true
   })
+}
+
+/** วันนี้ในรูปแบบ YYYY-MM-DD ตามเวลาเครื่องผู้ใช้ */
+function todayKey(d = new Date()) {
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+}
+
+/**
+ * บันทึกความมั่งคั่งสุทธิของวันนี้ (วันละ 1 แถว — เรียกซ้ำได้ ไม่ทำให้ประวัติรก)
+ * ใช้ทั้งตอนกดปุ่มเอง และตอนเปิดหน้าครั้งแรกของวัน
+ */
+export function useSaveNetWorthSnapshot() {
+  return useFinanceMutation(async ({ totalAsset, totalLiability, netWorth }, userId) =>
+    unwrap(
+      await supabase.from('net_worth_snapshots').upsert(
+        {
+          user_id: userId,
+          captured_on: todayKey(),
+          total_asset: totalAsset,
+          total_liability: totalLiability,
+          net_worth: netWorth,
+        },
+        { onConflict: 'user_id,captured_on' },
+      ).select(),
+    ),
+  )
+}
+
+/**
+ * เก็บสแนปช็อตอัตโนมัติครั้งแรกของวัน — เรียกจากหน้าความมั่งคั่งสุทธิ
+ * ไม่ทำอะไรถ้าวันนี้เก็บไปแล้ว หรือยังไม่มีตาราง (ยังไม่ได้รัน migration)
+ */
+export function useAutoNetWorthSnapshot(snapshots, totals) {
+  const { user } = useAuth()
+  const save = useSaveNetWorthSnapshot()
+  const done = useRef(false)
+
+  useEffect(() => {
+    if (done.current || !user?.id || !totals) return
+    if (totals.totalAsset === 0 && totals.totalLiability === 0) return
+    const today = todayKey()
+    const existing = snapshots?.find((s) => String(s.captured_on).slice(0, 10) === today)
+    // ถ้าค่าไม่เปลี่ยนจากที่บันทึกไว้แล้ววันนี้ ก็ไม่ต้องเขียนซ้ำ
+    if (existing && Math.round(Number(existing.net_worth)) === Math.round(totals.netWorth)) return
+    done.current = true
+    save.mutate(totals, { onError: () => { done.current = false } })
+  }, [user?.id, snapshots, totals, save])
 }
 
 /** ตั้งน้ำหนักเป้าหมายของหลายกลุ่มพร้อมกัน */

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Rocket, Download, ShieldAlert, KeyRound, Loader2, Trash2, AlertTriangle } from 'lucide-react'
+import { Rocket, Download, ShieldAlert, KeyRound, Loader2, Trash2, AlertTriangle, Landmark } from 'lucide-react'
 import { useFinanceData, useUpdateProfile, useWipeMyData } from '../hooks/useData'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../components/Toast'
@@ -26,6 +26,8 @@ export default function Settings() {
       birth_date: data.profile?.birth_date ?? '',
       target_age: data.profile?.target_age ?? '',
       target_amount: Number(data.profile?.target_amount) || 0,
+      net_worth_target: Number(data.profile?.net_worth_target) || 0,
+      net_worth_target_year: data.profile?.net_worth_target_year ?? '',
     })
   }
 
@@ -46,6 +48,8 @@ export default function Settings() {
         birth_date: profile.birth_date || null,
         target_age: profile.target_age ? Number(profile.target_age) : null,
         target_amount: profile.target_amount || null,
+        net_worth_target: profile.net_worth_target || null,
+        net_worth_target_year: profile.net_worth_target_year ? Number(profile.net_worth_target_year) : null,
       },
       {
         onSuccess: () => toast.success('บันทึกแล้ว'),
@@ -152,6 +156,35 @@ export default function Settings() {
             <button onClick={saveProfile} disabled={updateProfile.isPending} className="btn-primary">
               {updateProfile.isPending && <Loader2 size={16} className="animate-spin" />}
               บันทึกเป้าหมาย
+            </button>
+          </div>
+        </Section>
+
+        {/* ---------- เป้าหมายความมั่งคั่งสุทธิ ---------- */}
+        <Section
+          title={<span className="flex items-center gap-2"><Landmark size={17} className="text-emerald-500" /> เป้าหมายความมั่งคั่งสุทธิ</span>}
+          subtitle="ต่างจากเป้าหมายด้านบนตรงที่นับสินทรัพย์ทุกอย่าง (รวมบ้าน ที่ดิน) แล้วหักหนี้สินออก"
+        >
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="อยากมีความมั่งคั่งสุทธิ (บาท)">
+                <MoneyInput value={profile.net_worth_target} onChange={(v) => set('net_worth_target', v)} />
+              </Field>
+              <Field label="ภายในสิ้นปี">
+                <input
+                  type="number"
+                  min="1900"
+                  max="2200"
+                  className="input num text-right"
+                  value={profile.net_worth_target_year}
+                  onChange={(e) => set('net_worth_target_year', e.target.value)}
+                  placeholder={String(new Date().getFullYear() + 5)}
+                />
+              </Field>
+            </div>
+            <button onClick={saveProfile} disabled={updateProfile.isPending} className="btn-primary">
+              {updateProfile.isPending && <Loader2 size={16} className="animate-spin" />}
+              บันทึกเป้าหมายความมั่งคั่ง
             </button>
           </div>
         </Section>

@@ -249,6 +249,103 @@ export function marketValueOf(p) {
 
 export const hasUnits = (p) => n(p.units) > 0 && n(p.last_price) > 0
 
+// ---------------------------------------------------------------------------
+//  สภาพคล่องของสินทรัพย์
+// ---------------------------------------------------------------------------
+
+export const LIQUIDITY = {
+  liquid: { label: 'ถอนได้ทันที', hint: 'เงินสด เงินฝาก — ใช้ได้ทันทีที่ต้องการ', order: 1 },
+  investment: { label: 'ลงทุน', hint: 'ขายได้แต่ราคาผันผวน อาจต้องขายตอนราคาไม่ดี', order: 2 },
+  locked: { label: 'ถูกล็อกยาว', hint: 'เงินเกษียณ ประกัน — ถอนก่อนกำหนดไม่ได้หรือเสียสิทธิ์', order: 3 },
+  fixed: { label: 'ทรัพย์สินถาวร', hint: 'ที่ดิน บ้าน รถ — ขายเป็นเงินสดใช้เวลานาน', order: 4 },
+}
+
+/** เดาระดับสภาพคล่องจากข้อมูลที่มี ถ้าผู้ใช้ยังไม่ได้ระบุเอง */
+function guessLiquidity(row, isCategory) {
+  if (row.liquidity) return row.liquidity
+  if (isCategory) {
+    if (/ประกันสังคม|สำรองเลี้ยงชีพ|ประกัน|กบข|rmf|บำนาญ|provident/i.test(row.name)) return 'locked'
+    return row.is_investment ? 'investment' : 'liquid'
+  }
+  return row.from_portfolio ? 'investment' : 'fixed'
+}
+
+/**
+ * แยกสินทรัพย์ทั้งหมดตามระดับสภาพคล่อง
+ * รวมทั้งยอดสะสมรายหมวด (จากหน้าเงินสะสม) และทรัพย์สินที่กรอกเอง
+ */
+export function liquidityBreakdown(accumRows, savingCategories, assetRows) {
+  const catById = Object.fromEntries(savingCategories.map((c) => [c.id, c]))
+  const buckets = {}
+  const add = (key, name, value) => {
+    if (value <= 0) return
+    buckets[key] ??= { key, ...LIQUIDITY[key], total: 0, items: [] }
+    buckets[key].total += value
+    buckets[key].items.push({ name, value })
+  }
+
+  for (const a of accumRows) {
+    const cat = catById[a.id]
+    add(guessLiquidity(cat ?? { name: a.name, is_investment: a.is_investment }, true), a.name, a.current ?? a.projected)
+  }
+  for (const r of assetRows) {
+    if (r.kind !== 'asset' || r.virtual) continue
+    add(guessLiquidity(r, false), r.name, n(r.value))
+  }
+
+  const list = Object.values(buckets).sort((a, b) => a.order - b.order)
+  const total = list.reduce((s, b) => s + b.total, 0)
+  return {
+    buckets: list.map((b) => ({ ...b, weight: total ? b.total / total : 0, items: b.items.sort((x, y) => y.value - x.value) })),
+    total,
+    liquid: buckets.liquid?.total ?? 0,
+    investable: (buckets.liquid?.total ?? 0) + (buckets.investment?.total ?? 0),
+    untouchable: (buckets.locked?.total ?? 0) + (buckets.fixed?.total ?? 0),
+  }
+}
+
+/**
+ * อัตราส่วนสุขภาพความมั่งคั่ง
+ * @param avgExpense รายจ่ายเฉลี่ยต่อเดือน
+ * @param annualIncome รายรับทั้งปี
+ */
+export function wealthRatios({ netWorth, totalAsset, totalLiability, liquid, avgExpense, annualIncome }) {
+  return {
+    // สภาพคล่องครอบคลุมรายจ่ายกี่เดือน — เกณฑ์ปลอดภัยคือ 6
+    liquidityMonths: avgExpense > 0 ? liquid / avgExpense : 0,
+    // หนี้ต่อสินทรัพย์ — ต่ำกว่า 50% ถือว่าปลอดภัย
+    debtToAsset: totalAsset > 0 ? totalLiability / totalAsset : 0,
+    // ความมั่งคั่งเป็นกี่เท่าของรายได้ทั้งปี — ยิ่งสูงยิ่งอิสระทางการเงิน
+    netWorthToIncome: annualIncome > 0 ? netWorth / annualIncome : 0,
+    // สัดส่วนสินทรัพย์ที่แตะไม่ได้
+    illiquidRatio: totalAsset > 0 ? 1 - liquid / totalAsset : 0,
+  }
+}
+
+/** ความคืบหน้าสู่เป้าหมายความมั่งคั่งสุทธิ */
+export function netWorthGoal(profile, netWorth, today = new Date()) {
+  const target = n(profile?.net_worth_target)
+  const targetYear = Number(profile?.net_worth_target_year)
+  if (!target || !targetYear) return { configured: false }
+
+  const thisYear = today.getFullYear()
+  // นับเดือนที่เหลือถึงสิ้นปีเป้าหมาย
+  const monthsLeft = Math.max(0, (targetYear - thisYear) * 12 + (12 - (today.getMonth() + 1)))
+  const remain = Math.max(0, target - netWorth)
+
+  return {
+    configured: true,
+    target,
+    targetYear,
+    monthsLeft,
+    remain,
+    perMonth: monthsLeft > 0 ? remain / monthsLeft : remain,
+    progress: target ? netWorth / target : 0,
+    reached: netWorth >= target,
+    expired: targetYear < thisYear,
+  }
+}
+
 export function portfolioSummary(rows, realCostSetting) {
   const items = rows.map((p) => {
     const value = marketValueOf(p)

@@ -6,7 +6,7 @@ import { useFinanceData, useSaveEntry, useFillRow, useSaveCategory, useDeleteCat
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, Modal, Field, MoneyInput, ConfirmButton } from '../components/ui'
-import { MONTHS, MONTHS_FULL, SECTIONS, SECTION_LABEL, SECTION_SUM_LABEL, yearGrid, priorYearsByCat } from '../lib/calc'
+import { MONTHS, MONTHS_FULL, SECTIONS, SECTION_LABEL, SECTION_SUM_LABEL, yearGrid, priorYearsByCat, LIQUIDITY } from '../lib/calc'
 import { fmt, fmt0 } from '../lib/format'
 
 const SECTION_STYLE = {
@@ -455,6 +455,7 @@ function CategoryModal({ state, onClose, onSave, onDelete, categories }) {
   const [section, setSection] = useState('income')
   const [isInvestment, setIsInvestment] = useState(false)
   const [isEmergency, setIsEmergency] = useState(false)
+  const [liquidity, setLiquidity] = useState('')
   const [budget, setBudget] = useState(0)
   const lastState = useRef(null)
 
@@ -464,6 +465,7 @@ function CategoryModal({ state, onClose, onSave, onDelete, categories }) {
     setSection(state.section || 'income')
     setIsInvestment(Boolean(state.is_investment))
     setIsEmergency(Boolean(state.is_emergency_fund))
+    setLiquidity(state.liquidity || '')
     setBudget(Number(state.monthly_budget) || 0)
   }
   if (!state) return null
@@ -477,6 +479,7 @@ function CategoryModal({ state, onClose, onSave, onDelete, categories }) {
         section,
         is_investment: section === 'saving' ? isInvestment : false,
         is_emergency_fund: section === 'saving' ? isEmergency : false,
+        liquidity: section === 'saving' && liquidity ? liquidity : null,
         monthly_budget: section === 'expense' && budget > 0 ? budget : null,
         ...(editing ? {} : { sort_order: maxOrder + 1, active: true }),
       },
@@ -534,6 +537,20 @@ function CategoryModal({ state, onClose, onSave, onDelete, categories }) {
             ))}
           </div>
         </Field>
+
+        {section === 'saving' && (
+          <Field
+            label="ระดับสภาพคล่อง"
+            hint="ใช้แยกในหน้าความมั่งคั่งสุทธิว่าเงินก้อนไหนถอนมาใช้ได้จริง"
+          >
+            <select className="input" value={liquidity} onChange={(e) => setLiquidity(e.target.value)}>
+              <option value="">— ให้ระบบเดาให้ —</option>
+              {Object.entries(LIQUIDITY).map(([k, v]) => (
+                <option key={k} value={k}>{v.label} — {v.hint}</option>
+              ))}
+            </select>
+          </Field>
+        )}
 
         {section === 'saving' && (
           <div className="space-y-2">
