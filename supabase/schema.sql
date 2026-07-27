@@ -29,8 +29,12 @@ create table if not exists public.categories (
   sort_order    int  not null default 0,
   is_investment boolean not null default false,
   active        boolean not null default true,
-  -- เพิ่มใหม่: เพดานงบรายเดือน (เฉพาะ expense) ใช้เตือนเมื่อใช้เกิน
+  -- เพดานงบรายเดือน (เฉพาะ expense) ใช้เตือนเมื่อใช้เกิน
   monthly_budget numeric(14,2),
+  -- ทำเครื่องหมายว่าเป็น "เงินสำรองฉุกเฉิน" (เฉพาะ saving)
+  -- ใช้คำนวณว่าเงินสำรองครอบคลุมรายจ่ายได้กี่เดือน — อย่าติ๊กให้เงินเกษียณ
+  -- หรือเงินที่ถอนมาใช้ทันทีไม่ได้ เพราะจะทำให้ตัวเลขดูดีเกินจริง
+  is_emergency_fund boolean not null default false,
   created_at    timestamptz not null default now()
 );
 create index if not exists categories_user_idx on public.categories(user_id, section, sort_order);

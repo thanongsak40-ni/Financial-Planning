@@ -427,8 +427,18 @@ export function dashboard(year, data, today = new Date()) {
   // ---- ตัวชี้วัดสุขภาพการเงิน ----
   const monthsElapsed = Math.max(1, nowMonth)
   const avgExpense = ytd.expense / monthsElapsed
+
+  // เงินสำรองฉุกเฉิน = รายการที่ผู้ใช้ทำเครื่องหมายไว้
+  // ถ้ายังไม่ได้ทำเครื่องหมาย ค่อยเดาจากชื่อ — และต้องเจอคำว่า "ฉุกเฉิน" เท่านั้น
+  // (คำว่า "สำรอง" เฉย ๆ ไปชนกับ "กองทุนสำรองเลี้ยงชีพ" ซึ่งเป็นเงินเกษียณ ถอนมาใช้ไม่ได้)
+  const flagged = categories.filter((c) => c.section === 'saving' && c.is_emergency_fund)
+  const emergencyIds = new Set(
+    (flagged.length ? flagged : categories.filter(
+      (c) => c.section === 'saving' && /ฉุกเฉิน|emergency|rainy.?day/i.test(c.name),
+    )).map((c) => c.id),
+  )
   const emergencyFund = accum
-    .filter((a) => /ฉุกเฉิน|สำรอง|emergency/i.test(a.name))
+    .filter((a) => emergencyIds.has(a.id))
     .reduce((s, a) => s + (a.current ?? a.projected), 0)
 
   return {

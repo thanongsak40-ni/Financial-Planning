@@ -493,6 +493,7 @@ function CategoryModal({ state, onClose, onSave, onDelete, categories }) {
   const [name, setName] = useState('')
   const [section, setSection] = useState('income')
   const [isInvestment, setIsInvestment] = useState(false)
+  const [isEmergency, setIsEmergency] = useState(false)
   const [budget, setBudget] = useState(0)
   const lastState = useRef(null)
 
@@ -501,6 +502,7 @@ function CategoryModal({ state, onClose, onSave, onDelete, categories }) {
     setName(state.name || '')
     setSection(state.section || 'income')
     setIsInvestment(Boolean(state.is_investment))
+    setIsEmergency(Boolean(state.is_emergency_fund))
     setBudget(Number(state.monthly_budget) || 0)
   }
   if (!state) return null
@@ -513,6 +515,7 @@ function CategoryModal({ state, onClose, onSave, onDelete, categories }) {
         name: name.trim(),
         section,
         is_investment: section === 'saving' ? isInvestment : false,
+        is_emergency_fund: section === 'saving' ? isEmergency : false,
         monthly_budget: section === 'expense' && budget > 0 ? budget : null,
         ...(editing ? {} : { sort_order: maxOrder + 1, active: true }),
       },
@@ -572,20 +575,39 @@ function CategoryModal({ state, onClose, onSave, onDelete, categories }) {
         </Field>
 
         {section === 'saving' && (
-          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
-            <input
-              type="checkbox"
-              checked={isInvestment}
-              onChange={(e) => setIsInvestment(e.target.checked)}
-              className="mt-0.5 size-4 accent-indigo-600"
-            />
-            <span className="text-sm">
-              <span className="font-medium">เป็นการลงทุน</span>
-              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-                ติ๊กถ้ามูลค่าขึ้นลงตามตลาด (หุ้น กองทุน คริปโต) จะผูกกับพอร์ตลงทุนเพื่อดูกำไร/ขาดทุนได้
+          <div className="space-y-2">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+              <input
+                type="checkbox"
+                checked={isInvestment}
+                onChange={(e) => setIsInvestment(e.target.checked)}
+                className="mt-0.5 size-4 accent-indigo-600"
+              />
+              <span className="text-sm">
+                <span className="font-medium">เป็นการลงทุน</span>
+                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                  ติ๊กถ้ามูลค่าขึ้นลงตามตลาด (หุ้น กองทุน คริปโต) จะผูกกับพอร์ตลงทุนเพื่อดูกำไร/ขาดทุนได้
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+              <input
+                type="checkbox"
+                checked={isEmergency}
+                onChange={(e) => setIsEmergency(e.target.checked)}
+                className="mt-0.5 size-4 accent-indigo-600"
+              />
+              <span className="text-sm">
+                <span className="font-medium">เป็นเงินสำรองฉุกเฉิน</span>
+                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                  ใช้คำนวณว่าเงินสำรองครอบคลุมรายจ่ายได้กี่เดือน —
+                  ติ๊กเฉพาะเงินที่<strong>ถอนมาใช้ได้ทันที</strong> อย่าติ๊กเงินเกษียณอย่างกองทุนสำรองเลี้ยงชีพ
+                  หรือประกันสังคม เพราะจะทำให้ตัวเลขดูดีเกินจริง
+                </span>
+              </span>
+            </label>
+          </div>
         )}
 
         {section === 'expense' && (
