@@ -4,7 +4,7 @@ import { useFinanceData, useSaveCarryOver } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, Section, Empty, StatCard, Modal, Field, MoneyInput, Money, Tabs, ProgressBar } from '../components/ui'
-import { ChartCard, DonutChart } from '../components/charts'
+import { DonutChart } from '../components/charts'
 import { useChartColors, capSeries } from '../lib/chartTheme'
 import { savingsAccum, allocation } from '../lib/calc'
 import { fmt0, fmtPct } from '../lib/format'
@@ -80,28 +80,26 @@ export default function Savings() {
             <StatCard label="คาดการณ์สิ้นปี" value={totals.projected} tone="income" />
           </div>
 
-          {/* ---------- สัดส่วน + สมดุลความเสี่ยง (ตามมุมมองที่เลือกด้านบน) ---------- */}
+          {/* ---------- สัดส่วน: โดนัทกับรายการอยู่ในการ์ดเดียว ----------
+               รายการทำหน้าที่เป็น legend ของโดนัทไปในตัว (จุดสีตรงกัน)
+               จึงปิด legend ของกราฟ ไม่ให้มีสองชุดซ้อนกัน */}
           {alloc.total > 0 && (
-            <div className="grid gap-4 xl:grid-cols-2">
-              <ChartCard
-                title="สัดส่วนแต่ละรายการ"
-                subtitle={`มุมมอง${viewLabel} · รวม ${fmt0(alloc.total)} บาท${capped.folded > 0 ? ` · รวม ${capped.folded} รายการเล็กเป็น "อื่น ๆ"` : ''}`}
-                height={300}
-              >
-                <DonutChart
-                  data={capped.items}
-                  colors={colors.categorical}
-                  total={alloc.total}
-                  centerLabel="รวม"
-                  centerValue={alloc.total}
-                  height={300}
-                />
-              </ChartCard>
+            <Section
+              title="สัดส่วนแต่ละรายการ"
+              subtitle={`มุมมอง${viewLabel} · รวม ${fmt0(alloc.total)} บาท${capped.folded > 0 ? ` · รวม ${capped.folded} รายการเล็กเป็น "อื่น ๆ"` : ''}`}
+            >
+              <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,18rem)_1fr]">
+                <div className="h-64">
+                  <DonutChart
+                    data={capped.items}
+                    colors={colors.categorical}
+                    total={alloc.total}
+                    centerLabel="รวม"
+                    centerValue={alloc.total}
+                    showLegend={false}
+                  />
+                </div>
 
-              <Section
-                title="รายการ สัดส่วน และจำนวน"
-                subtitle={`มุมมอง${viewLabel} — เรียงจากมากไปน้อย`}
-              >
                 <ul className="space-y-3">
                   {alloc.items.map((item, i) => (
                     <li key={item.name}>
@@ -113,14 +111,19 @@ export default function Savings() {
                           />
                           <span className="truncate">{item.name}</span>
                         </span>
-                        <span className="num shrink-0 font-medium">{fmt0(item.value)}</span>
+                        <span className="shrink-0">
+                          <span className="num font-medium">{fmt0(item.value)}</span>
+                          <span className="num ml-2 w-10 text-xs text-slate-400 dark:text-slate-500">
+                            {fmtPct(item.pct, 0)}
+                          </span>
+                        </span>
                       </div>
-                      <ProgressBar value={item.value} max={alloc.total} tone="brand" />
+                      <ProgressBar value={item.value} max={alloc.total} tone="brand" showPct={false} height="h-1.5" />
                     </li>
                   ))}
                 </ul>
-              </Section>
-            </div>
+              </div>
+            </Section>
           )}
 
           <Section title={`ยอดสะสมรายรายการ ปี ${year}`}>

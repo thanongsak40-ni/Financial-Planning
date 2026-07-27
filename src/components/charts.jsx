@@ -159,7 +159,7 @@ export function TrendLines({ data, series, height = 300, refLines = [], xKey = '
 //  โดนัท — สัดส่วนต่อภาพรวม (ไม่เกิน 6 ชิ้น)
 // ---------------------------------------------------------------------------
 
-export function DonutChart({ data, colors, total, height = 280, centerLabel, centerValue }) {
+export function DonutChart({ data, colors, total, height = 280, centerLabel, centerValue, showLegend = true }) {
   const { chrome } = useChartColors()
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -189,7 +189,8 @@ export function DonutChart({ data, colors, total, height = 280, centerLabel, cen
           )}
         </Pie>
         <Tooltip content={<TooltipBox total={total} />} />
-        <Legend wrapperStyle={legendStyle} iconType="circle" iconSize={8} />
+        {/* ปิด legend ได้เมื่อมีรายการที่ทำหน้าที่แทนอยู่ข้างๆ แล้ว จะได้ไม่ซ้ำกัน */}
+        {showLegend && <Legend wrapperStyle={legendStyle} iconType="circle" iconSize={8} />}
       </PieChart>
     </ResponsiveContainer>
   )
