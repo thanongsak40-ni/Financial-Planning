@@ -10,7 +10,7 @@ import { PageHeader, Spinner, ErrorBox, StatCard, Section, ProgressBar, Empty, M
 import { ChartCard, MonthlyBars, TrendLines, DonutChart, DataTable } from '../components/charts'
 import { useChartColors, capSeries } from '../lib/chartTheme'
 import { dashboard, MONTHS, MONTHS_FULL } from '../lib/calc'
-import { fmt0, fmtPct, fmtSigned } from '../lib/format'
+import { fmt0, fmtPct, fmtSigned, fmtAgo } from '../lib/format'
 
 export default function Dashboard() {
   const { year, thisYear } = useYear()
@@ -42,6 +42,24 @@ export default function Dashboard() {
 
   const alloc = capSeries(d.allocation.items, 6)
   const expenses = capSeries(d.expenseByCat, 6)
+
+  // ราคาพอร์ตกรอกเอง จึงบอกด้วยว่าอัปเดตครั้งล่าสุดเมื่อไร — ตัวเลขกำไรจะได้ไม่ถูกอ่านว่าสดกว่าความจริง
+  const portfolioAgo = fmtAgo(
+    (data.portfolio ?? []).reduce((latest, p) => {
+      const t = p.updated_at ? new Date(p.updated_at) : null
+      return t && (!latest || t > latest) ? t : latest
+    }, null),
+  )
+
+  // ตัวที่กำไรมากสุด 2 ตัว และขาดทุนมากสุด 1 ตัว (items เรียงตามกำไรจากมากไปน้อยมาแล้ว)
+  const movers = (() => {
+    const items = d.portfolio.items
+    if (items.length < 3) return []
+    const out = items.slice(0, 2).map((i) => ({ ...i, tag: 'กำไรสุด' }))
+    const worst = items[items.length - 1]
+    if (worst.gain < 0) out.push({ ...worst, tag: 'ขาดทุนสุด' })
+    return out.map((m, i) => ({ ...m, tag: i === 1 ? '' : m.tag }))
+  })()
 
   return (
     <>
@@ -280,34 +298,37 @@ export default function Dashboard() {
             </ChartCard>
           </div>
 
-          {/* ---------- เป้าหมาย + ภาษี ---------- */}
+          {/* ---------- เป้าหมาย + พอร์ต ---------- */}
           <div className="grid gap-4 lg:grid-cols-2">
             <Section
               title={`เป้าหมายปี ${year}`}
-              subtitle={`ทำสำเร็จแล้ว ${d.goals.done} จาก ${d.goals.total} ข้อ`}
               right={<Link to="/goals" className="btn-ghost text-sm">จัดการ <ArrowRight size={14} /></Link>}
             >
               {d.goals.total === 0 ? (
                 <Empty icon={CheckCircle2} title="ยังไม่ได้ตั้งเป้าหมายปีนี้" />
               ) : (
                 <>
-                  <ProgressBar value={d.goals.done} max={d.goals.total} tone="brand" />
-                  <ul className="mt-3 space-y-1.5">
-                    {d.goals.items.slice(0, 5).map((g) => (
-                      <li key={g.id} className="flex items-center gap-2 text-sm">
+                  <div className="mb-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-slate-900 dark:text-slate-50">{d.goals.done}</span>
+                    <span className="text-slate-400 dark:text-slate-500">/ {d.goals.total} ข้อ</span>
+                    <span className="ml-auto text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+                      {fmtPct(d.goals.total ? d.goals.done / d.goals.total : 0, 0)}
+                    </span>
+                  </div>
+                  <ProgressBar value={d.goals.done} max={d.goals.total} tone="brand" showPct={false} height="h-2" />
+                  <ul className="mt-4 space-y-2">
+                    {d.goals.items.map((g) => (
+                      <li key={g.id} className="flex items-start gap-2.5 text-sm">
                         {g.done ? (
-                          <CheckCircle2 size={15} className="shrink-0 text-emerald-500" />
+                          <CheckCircle2 size={16} className="mt-px shrink-0 text-emerald-500" />
                         ) : (
-                          <span className="size-[15px] shrink-0 rounded-full border-2 border-slate-300 dark:border-slate-600" />
+                          <span className="mt-0.5 size-4 shrink-0 rounded-full border-2 border-slate-300 dark:border-slate-600" />
                         )}
                         <span className={g.done ? 'text-slate-400 line-through dark:text-slate-600' : 'text-slate-700 dark:text-slate-300'}>
                           {g.goal}
                         </span>
                       </li>
                     ))}
-                    {d.goals.total > 5 && (
-                      <li className="pt-1 text-xs text-slate-400">และอีก {d.goals.total - 5} ข้อ</li>
-                    )}
                   </ul>
                 </>
               )}
@@ -315,29 +336,64 @@ export default function Dashboard() {
 
             <Section
               title="พอร์ตลงทุน"
-              subtitle={`${d.portfolio.items.length} รายการ`}
+              subtitle={
+                portfolioAgo
+                  ? `${d.portfolio.items.length} รายการ · อัปเดตราคาล่าสุด ${portfolioAgo}`
+                  : `${d.portfolio.items.length} รายการ`
+              }
               right={<Link to="/portfolio" className="btn-ghost text-sm">ดูพอร์ต <ArrowRight size={14} /></Link>}
             >
               {d.portfolio.items.length === 0 ? (
                 <Empty icon={TrendingUp} title="ยังไม่มีรายการในพอร์ต" />
               ) : (
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">ต้นทุน</p>
-                    <p className="num mt-1 font-semibold">{fmt0(d.portfolio.realCost)}</p>
+                <>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">ต้นทุน</p>
+                      <p className="num mt-1 font-semibold">{fmt0(d.portfolio.realCost)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">มูลค่าปัจจุบัน</p>
+                      <p className="num mt-1 font-semibold">{fmt0(d.portfolio.totalValue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">กำไร/ขาดทุน</p>
+                      <p className={`num mt-1 font-semibold ${d.portfolio.realGain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {fmtSigned(d.portfolio.realGain)}
+                        <span className="ml-1 text-xs font-normal">({fmtPct(d.portfolio.realPct)})</span>
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">มูลค่าปัจจุบัน</p>
-                    <p className="num mt-1 font-semibold">{fmt0(d.portfolio.totalValue)}</p>
+
+                  {/* แถบเทียบต้นทุนกับมูลค่า — เห็นภาพว่ากำไรคิดเป็นสัดส่วนเท่าไรของเงินที่ลงไป */}
+                  <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div
+                      className="bg-slate-400 dark:bg-slate-600"
+                      style={{ width: `${(Math.min(d.portfolio.realCost, d.portfolio.totalValue) / Math.max(d.portfolio.realCost, d.portfolio.totalValue, 1)) * 100}%` }}
+                    />
+                    <div
+                      className={`${d.portfolio.realGain >= 0 ? 'bg-emerald-500' : 'bg-rose-500'} ml-0.5`}
+                      style={{ width: `${(Math.abs(d.portfolio.realGain) / Math.max(d.portfolio.realCost, d.portfolio.totalValue, 1)) * 100}%` }}
+                    />
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">กำไร/ขาดทุน</p>
-                    <p className={`num mt-1 font-semibold ${d.portfolio.realGain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                      {fmtSigned(d.portfolio.realGain)}
-                      <span className="ml-1 text-xs font-normal">({fmtPct(d.portfolio.realPct)})</span>
-                    </p>
-                  </div>
-                </div>
+
+                  {movers.length > 0 && (
+                    <ul className="mt-4 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                      {movers.map((m) => (
+                        <li key={m.id} className="flex items-center gap-2 text-sm">
+                          <span className="w-12 shrink-0 text-xs text-slate-400 dark:text-slate-500">{m.tag}</span>
+                          <span className="min-w-0 flex-1 truncate">{m.name}</span>
+                          <span className={`num shrink-0 font-medium ${m.gain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                            {fmtSigned(m.gain)}
+                          </span>
+                          <span className={`num w-14 shrink-0 text-right text-xs ${m.gain >= 0 ? 'text-emerald-600/70 dark:text-emerald-400/70' : 'text-rose-600/70 dark:text-rose-400/70'}`}>
+                            {fmtPct(m.pct)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </Section>
           </div>

@@ -50,6 +50,21 @@ export function fmtDate(v) {
   return `${d.getDate()} ${THAI_MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
 
+/** "2 เดือนที่แล้ว" — ใช้บอกความสดของข้อมูลที่ต้องอัปเดตเอง เช่น ราคาพอร์ต */
+export function fmtAgo(v, now = new Date()) {
+  if (!v) return null
+  const d = v instanceof Date ? v : new Date(v)
+  if (Number.isNaN(d.getTime())) return null
+  const days = Math.floor((now - d) / 86400000)
+  if (days < 0) return null
+  if (days === 0) return 'วันนี้'
+  if (days === 1) return 'เมื่อวาน'
+  if (days < 30) return `${days} วันที่แล้ว`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months} เดือนที่แล้ว`
+  return `${Math.floor(months / 12)} ปีที่แล้ว`
+}
+
 /** "1 ปี 4 เดือน" */
 export function fmtDuration(months) {
   if (!Number.isFinite(months)) return 'ไม่มีวันหมด'
