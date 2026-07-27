@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
-import { Rocket, Download, ShieldAlert, KeyRound, Loader2, Trash2, AlertTriangle, Landmark } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Rocket, Download, ShieldAlert, KeyRound, Loader2, Trash2, AlertTriangle, Landmark, ShieldCheck } from 'lucide-react'
 import { useFinanceData, useUpdateProfile, useWipeMyData } from '../hooks/useData'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../components/Toast'
@@ -228,9 +229,14 @@ export default function Settings() {
               </div>
             ))}
           </div>
-          <button onClick={exportData} className="btn-outline">
-            <Download size={16} /> ดาวน์โหลดข้อมูลทั้งหมด (JSON)
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={exportData} className="btn-outline">
+              <Download size={16} /> ดาวน์โหลดข้อมูลทั้งหมด (JSON)
+            </button>
+            <Link to="/privacy" className="btn-ghost">
+              <ShieldCheck size={16} /> ข้อมูลของคุณถูกเก็บยังไง
+            </Link>
+          </div>
         </Section>
 
         {/* ---------- โซนอันตราย ---------- */}

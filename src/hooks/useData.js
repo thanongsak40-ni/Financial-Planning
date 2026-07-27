@@ -17,6 +17,7 @@ const TABLES = [
   ['goals', 'goals', { order: ['sort_order', { ascending: true }] }],
   ['taxItems', 'tax_items', {}],
   ['recurring', 'recurring', {}],
+  ['accounts', 'accounts', { order: ['sort_order', { ascending: true }], optional: true }],
   // optional = ถ้าตารางยังไม่มี (ยังไม่ได้รัน migration) ให้ถือว่าว่างเปล่า
   // แทนที่จะทำให้ทั้งแอปโหลดไม่ขึ้น
   ['snapshots', 'portfolio_snapshots', { order: ['captured_on', { ascending: true }], optional: true }],

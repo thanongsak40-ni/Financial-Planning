@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Wallet, Mail, Lock, User, Loader2, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../components/Toast'
@@ -227,6 +227,10 @@ export default function Login() {
               {t.btn}
             </button>
           </form>
+
+          <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">
+            <Link to="/privacy" className="hover:underline">ข้อมูลของคุณถูกเก็บยังไง</Link>
+          </p>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-sm">
             {mode === 'signin' ? (

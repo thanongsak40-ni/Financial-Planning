@@ -11,6 +11,8 @@ import Grid from './pages/Grid'
 import Savings from './pages/Savings'
 import Portfolio from './pages/Portfolio'
 import Balance from './pages/Balance'
+import Accounts from './pages/Accounts'
+import Privacy from './pages/Privacy'
 import Goals from './pages/Goals'
 import Tax from './pages/Tax'
 import Settings from './pages/Settings'
@@ -31,6 +33,7 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/privacy" element={<Privacy />} />
       <Route
         path="/login"
         element={loading ? <div className="grid h-full place-items-center"><Spinner /></div> : user ? <Navigate to="/" replace /> : <Login />}
@@ -50,6 +53,8 @@ export default function App() {
                   <Route path="allocation" element={<Navigate to="/savings" replace />} />
                   <Route path="portfolio" element={<Portfolio />} />
                   <Route path="balance" element={<Balance />} />
+                  <Route path="accounts" element={<Accounts />} />
+                  <Route path="privacy" element={<Privacy />} />
                   <Route path="goals" element={<Goals />} />
                   <Route path="tax" element={<Tax />} />
                   <Route path="settings" element={<Settings />} />

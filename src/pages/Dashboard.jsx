@@ -5,6 +5,7 @@ import {
   ArrowRight, CheckCircle2, TrendingUp,
 } from 'lucide-react'
 import { useFinanceData } from '../hooks/useData'
+import Onboarding from '../components/Onboarding'
 import { useYear } from '../hooks/useYear'
 import { PageHeader, Spinner, ErrorBox, StatCard, Section, ProgressBar, Empty, Money } from '../components/ui'
 import { ChartCard, MonthlyBars, TrendLines, DonutChart, DataTable } from '../components/charts'
@@ -73,6 +74,10 @@ export default function Dashboard() {
               : `ปี ${year} · สรุปทั้งปี`
         }
       />
+
+      <div className="mb-5">
+        <Onboarding />
+      </div>
 
       {noData ? (
         <Section>

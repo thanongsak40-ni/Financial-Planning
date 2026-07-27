@@ -16,6 +16,7 @@ const NAV = [
     { to: '/actual', icon: NotebookPen, label: 'แผนการเงิน' },
   ]},
   { group: 'ความมั่งคั่ง', items: [
+    { to: '/accounts', icon: Wallet, label: 'บัญชีธนาคาร' },
     { to: '/savings', icon: PiggyBank, label: 'เงินสะสม' },
     { to: '/portfolio', icon: TrendingUp, label: 'พอร์ตลงทุน' },
     { to: '/balance', icon: Landmark, label: 'ความมั่งคั่งสุทธิ' },
