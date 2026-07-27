@@ -113,6 +113,30 @@ export function yearGrid(year, type, categories, entries) {
   }
 }
 
+/**
+ * ยอดสะสมถึง "สิ้นปีก่อนหน้า" ของแต่ละรายการ — ใช้ทำคอลัมน์สะสมในตาราง
+ *   หมวดออม/ลงทุน → ใช้ยอดยกมา (ซึ่งไล่ต่อจากปีก่อนหรือค่าที่ระบุเองไว้แล้ว)
+ *   หมวดรายรับ/รายจ่าย → รวมทุกปีก่อนหน้าตรง ๆ
+ *
+ * @returns {Record<string, number>} categoryId -> ยอดสะสมถึงสิ้นปีก่อน
+ */
+export function priorYearsByCat(year, categories, entries, carryOver) {
+  const savingCats = categories.filter((c) => c.section === 'saving')
+  const opening = openingBalances(year, savingCats, entries, carryOver)
+
+  const prior = {}
+  for (const e of entries) {
+    if (e.type !== 'actual' || Number(e.year) >= year) continue
+    prior[e.category_id] = (prior[e.category_id] || 0) + n(e.amount)
+  }
+
+  const out = {}
+  for (const c of categories) {
+    out[c.id] = c.section === 'saving' ? opening[c.id] || 0 : prior[c.id] || 0
+  }
+  return out
+}
+
 // ---------------------------------------------------------------------------
 //  เงินออม/ลงทุนสะสม
 // ---------------------------------------------------------------------------

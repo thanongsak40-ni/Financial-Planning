@@ -6,7 +6,7 @@ import { useFinanceData, useSaveEntry, useFillRow, useSaveCategory, useDeleteCat
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, Modal, Field, MoneyInput, ConfirmButton } from '../components/ui'
-import { MONTHS, MONTHS_FULL, SECTIONS, SECTION_LABEL, SECTION_SUM_LABEL, yearGrid } from '../lib/calc'
+import { MONTHS, MONTHS_FULL, SECTIONS, SECTION_LABEL, SECTION_SUM_LABEL, yearGrid, priorYearsByCat } from '../lib/calc'
 import { fmt, fmt0 } from '../lib/format'
 
 const SECTION_STYLE = {
@@ -127,6 +127,12 @@ export default function Grid() {
     [year, categories, data?.entries],
   )
 
+  // ยอดสะสมถึงสิ้นปีก่อน — เอาไปบวกกับรวมทั้งปีนี้เป็นคอลัมน์ "สะสม"
+  const prior = useMemo(
+    () => priorYearsByCat(year, categories, data?.entries ?? [], data?.carryOver ?? []),
+    [year, categories, data?.entries, data?.carryOver],
+  )
+
   const noteByMonth = useMemo(
     () => Object.fromEntries((notes ?? []).map((n) => [n.month, n.note])),
     [notes],
@@ -153,7 +159,12 @@ export default function Grid() {
     for (const c of visible.filter((c) => c.section === s)) rowIndexOf[c.id] = rowIndex++
   }
 
-  const totalCol = 'sticky right-0 z-10 border-l-2 border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900'
+  const totalCol = 'sticky right-24 z-10 border-l-2 border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900'
+  const accumCol = 'sticky right-0 z-10 w-24 border-l border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900'
+  const sectionAccum = (sec) =>
+    visible
+      .filter((c) => c.section === sec)
+      .reduce((sum, c) => sum + (prior[c.id] || 0) + (grid.byCat[c.id]?.reduce((a, b) => a + b, 0) || 0), 0)
 
   return (
     <>
@@ -169,7 +180,7 @@ export default function Grid() {
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-14 z-20">
+            <thead className="sticky top-0 z-20">
               <tr className="border-b border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800">
                 <th className="th sticky left-0 z-10 min-w-52 bg-slate-100 text-left dark:bg-slate-800">รายการ</th>
                 {MONTHS.map((m, i) => (
@@ -183,7 +194,12 @@ export default function Grid() {
                   </th>
                 ))}
                 <th className={`th ${totalCol} min-w-24 text-right !bg-slate-100 dark:!bg-slate-800`}>รวมทั้งปี</th>
-                <th className="th w-10" />
+                <th
+                  className={`th ${accumCol} min-w-24 text-right !bg-slate-100 dark:!bg-slate-800`}
+                  title="ยอดสะสมถึงสิ้นปีก่อน + รวมทั้งปีนี้"
+                >
+                  สะสม
+                </th>
               </tr>
             </thead>
 
@@ -281,6 +297,11 @@ export default function Grid() {
                                 {fmt(total)}
                               </span>
                             </td>
+                            <td className={`${accumCol} px-2 py-1 text-right`}>
+                              <span className="num text-slate-500 dark:text-slate-400">
+                                {fmt((prior[cat.id] || 0) + total)}
+                              </span>
+                            </td>
                           </tr>
                         )
                       })}
@@ -299,7 +320,9 @@ export default function Grid() {
                       <td className={`${totalCol} px-2 py-1.5 text-right !bg-transparent`}>
                         <span className="num">{fmt(grid.sectionTotal[section])}</span>
                       </td>
-                      <td />
+                      <td className={`${accumCol} px-2 py-1.5 text-right !bg-transparent`}>
+                        <span className="num">{fmt(sectionAccum(section))}</span>
+                      </td>
                     </tr>
                   </Fragment>
                 )
@@ -328,7 +351,9 @@ export default function Grid() {
                     {fmt(grid.grandTotal)}
                   </span>
                 </td>
-                <td className="bg-slate-100 dark:bg-slate-800" />
+                <td className={`${accumCol} px-2 py-2 text-center !bg-slate-100 dark:!bg-slate-800`}>
+                  <span className="text-slate-300 dark:text-slate-700">—</span>
+                </td>
               </tr>
 
 
@@ -355,7 +380,7 @@ export default function Grid() {
                     )
                   })}
                   <td className={`${totalCol} !bg-white dark:!bg-slate-900`} />
-                  <td />
+                  <td className={`${accumCol} !bg-white dark:!bg-slate-900`} />
                 </tr>
               )}
             </tbody>

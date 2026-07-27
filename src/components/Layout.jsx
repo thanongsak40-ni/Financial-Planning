@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Rocket, NotebookPen, PiggyBank,
   TrendingUp, Landmark, CheckSquare, Receipt, Settings as SettingsIcon,
-  Wallet, Menu, X, Sun, Moon, LogOut, ChevronLeft,
+  Wallet, Menu, X, Sun, Moon, LogOut,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useYear } from '../hooks/useYear'
@@ -37,7 +37,6 @@ function useTheme() {
 
 export default function Layout({ children }) {
   const [open, setOpen] = useState(false)
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar') === 'collapsed')
   const [dark, toggleTheme] = useTheme()
   const { user, signOut } = useAuth()
   const { year, setYear, years } = useYear()
@@ -45,9 +44,6 @@ export default function Layout({ children }) {
   const toast = useToast()
 
   useEffect(() => setOpen(false), [location.pathname])
-  useEffect(() => {
-    localStorage.setItem('sidebar', collapsed ? 'collapsed' : 'expanded')
-  }, [collapsed])
 
   const name = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้'
   const initial = name.charAt(0).toUpperCase()
@@ -57,19 +53,17 @@ export default function Layout({ children }) {
     toast.info('ออกจากระบบแล้ว')
   }
 
-  const sidebarWidth = collapsed ? 'lg:w-16' : 'lg:w-60'
-
   return (
     <div className="flex h-full">
       {/* ---------- Sidebar ---------- */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:translate-x-0 lg:transition-[width] dark:border-slate-800 dark:bg-slate-900 ${sidebarWidth} ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:w-60 lg:translate-x-0 dark:border-slate-800 dark:bg-slate-900 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className={`flex h-14 items-center gap-2.5 border-b border-slate-200 px-4 dark:border-slate-800 ${collapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+        <div className="flex h-14 items-center gap-2.5 border-b border-slate-200 px-4 dark:border-slate-800">
           <Wallet size={22} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
-          {!collapsed && <span className="truncate font-bold text-slate-900 dark:text-slate-50">วางแผนการเงิน</span>}
+          <span className="truncate font-bold text-slate-900 dark:text-slate-50">วางแผนการเงิน</span>
           <button onClick={() => setOpen(false)} className="btn-ghost ml-auto !p-1.5 lg:hidden" aria-label="ปิดเมนู">
             <X size={18} />
           </button>
@@ -78,22 +72,17 @@ export default function Layout({ children }) {
         <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 py-4">
           {NAV.map((g) => (
             <div key={g.group}>
-              {!collapsed && (
-                <p className="px-2.5 pb-1.5 text-[11px] font-semibold tracking-wider text-slate-400 uppercase dark:text-slate-600">
-                  {g.group}
-                </p>
-              )}
+              <p className="px-2.5 pb-1.5 text-[11px] font-semibold tracking-wider text-slate-400 uppercase dark:text-slate-600">
+                {g.group}
+              </p>
               <div className="space-y-0.5">
                 {g.items.map(({ to, icon: Icon, label, end }) => (
                   <NavLink
                     key={to}
                     to={to}
                     end={end}
-                    title={collapsed ? label : undefined}
                     className={({ isActive }) =>
                       `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition ${
-                        collapsed ? 'lg:justify-center' : ''
-                      } ${
                         isActive
                           ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
                           : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
@@ -101,7 +90,7 @@ export default function Layout({ children }) {
                     }
                   >
                     <Icon size={18} className="shrink-0" />
-                    {!collapsed && <span className="truncate">{label}</span>}
+                    <span className="truncate">{label}</span>
                   </NavLink>
                 ))}
               </div>
@@ -109,32 +98,6 @@ export default function Layout({ children }) {
           ))}
         </nav>
 
-        <div className="border-t border-slate-200 p-2.5 dark:border-slate-800">
-          <NavLink
-            to="/settings"
-            title={collapsed ? 'ตั้งค่า' : undefined}
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition ${
-                collapsed ? 'lg:justify-center' : ''
-              } ${
-                isActive
-                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
-                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
-              }`
-            }
-          >
-            <SettingsIcon size={18} className="shrink-0" />
-            {!collapsed && <span>ตั้งค่า</span>}
-          </NavLink>
-          <button
-            onClick={() => setCollapsed((c) => !c)}
-            className="mt-0.5 hidden w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 lg:flex dark:text-slate-500 dark:hover:bg-slate-800"
-            title={collapsed ? 'ขยายเมนู' : 'ยุบเมนู'}
-          >
-            <ChevronLeft size={18} className={`shrink-0 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
-            {!collapsed && <span>ยุบเมนู</span>}
-          </button>
-        </div>
       </aside>
 
       {open && <div className="fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-sm lg:hidden" onClick={() => setOpen(false)} />}
@@ -186,9 +149,21 @@ export default function Layout({ children }) {
                   <p className="truncate text-sm font-medium">{name}</p>
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">{user?.email}</p>
                 </div>
+                <NavLink
+                  to="/settings"
+                  className={({ isActive }) =>
+                    `mt-1 flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition ${
+                      isActive
+                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
+                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                    }`
+                  }
+                >
+                  <SettingsIcon size={16} /> ตั้งค่า
+                </NavLink>
                 <button
                   onClick={handleSignOut}
-                  className="mt-1 flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-rose-600 transition hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-rose-600 transition hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/50"
                 >
                   <LogOut size={16} /> ออกจากระบบ
                 </button>

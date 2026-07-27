@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react'
-import { Rocket, Download, ShieldAlert, KeyRound, Loader2 } from 'lucide-react'
+import { Rocket, Download, ShieldAlert, KeyRound, Loader2, Trash2, AlertTriangle } from 'lucide-react'
 import { useFinanceData, useUpdateProfile, useWipeMyData } from '../hooks/useData'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../components/Toast'
-import { PageHeader, Spinner, ErrorBox, Section, Field, MoneyInput, ConfirmButton } from '../components/ui'
+import { PageHeader, Spinner, ErrorBox, Section, Field, MoneyInput, Modal } from '../components/ui'
 import { fmt0, fmtDate } from '../lib/format'
 
 export default function Settings() {
@@ -16,6 +16,7 @@ export default function Settings() {
   const [profile, setProfile] = useState(null)
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [wipeModal, setWipeModal] = useState(false)
   const loaded = useRef(false)
 
   if (data && !loaded.current) {
@@ -209,20 +210,108 @@ export default function Settings() {
               การกระทำในส่วนนี้ย้อนกลับไม่ได้ — แนะนำให้ดาวน์โหลดข้อมูลเก็บไว้ก่อน
             </p>
           </header>
-          <ConfirmButton
-            onConfirm={() =>
-              wipe.mutate(undefined, {
-                onSuccess: () => toast.success('ล้างข้อมูลทั้งหมดแล้ว'),
-                onError: (e) => toast.error(e.message),
-              })
-            }
+          <button
+            onClick={() => setWipeModal(true)}
             className="btn-outline !border-rose-300 !text-rose-700 dark:!border-rose-800 dark:!text-rose-400"
-            confirmLabel="ยืนยันล้างข้อมูลทั้งหมด? กดอีกครั้ง"
           >
-            ล้างข้อมูลการเงินทั้งหมดของฉัน
-          </ConfirmButton>
+            <Trash2 size={16} /> ล้างข้อมูลการเงินทั้งหมดของฉัน
+          </button>
         </section>
       </div>
+
+      <WipeModal
+        open={wipeModal}
+        counts={{
+          categories: data.categories.length,
+          entries: data.entries.length,
+          portfolio: data.portfolio.length,
+          goals: data.goals.length,
+        }}
+        busy={wipe.isPending}
+        onClose={() => setWipeModal(false)}
+        onExport={exportData}
+        onConfirm={() =>
+          wipe.mutate(undefined, {
+            onSuccess: () => { toast.success('ล้างข้อมูลทั้งหมดแล้ว'); setWipeModal(false) },
+            onError: (e) => toast.error(e.message),
+          })
+        }
+      />
     </>
+  )
+}
+
+/** ยืนยันการล้างข้อมูล — ต้องพิมพ์ข้อความให้ตรงก่อน เพราะกู้คืนไม่ได้ */
+const WIPE_PHRASE = 'ล้างข้อมูล'
+
+function WipeModal({ open, counts, busy, onClose, onConfirm, onExport }) {
+  const [text, setText] = useState('')
+  const wasOpen = useRef(false)
+  if (open && !wasOpen.current) { wasOpen.current = true; setText('') }
+  if (!open) { wasOpen.current = false; return null }
+
+  const ok = text.trim() === WIPE_PHRASE
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="ล้างข้อมูลการเงินทั้งหมด"
+      footer={
+        <>
+          <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
+          <button onClick={onConfirm} disabled={!ok || busy} className="btn-danger">
+            {busy && <Loader2 size={16} className="animate-spin" />}
+            ล้างข้อมูลถาวร
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+          <AlertTriangle size={18} className="mt-px shrink-0" />
+          <p>
+            <strong>การกระทำนี้ย้อนกลับไม่ได้</strong> — ข้อมูลจะถูกลบออกจากฐานข้อมูลถาวร
+            ไม่มีถังขยะให้กู้คืน
+          </p>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm text-slate-600 dark:text-slate-300">สิ่งที่จะถูกลบ:</p>
+          <ul className="grid grid-cols-2 gap-2 text-sm">
+            {[
+              ['รายการ', counts.categories],
+              ['ตัวเลขรายเดือน', counts.entries],
+              ['สินทรัพย์ในพอร์ต', counts.portfolio],
+              ['เป้าหมาย', counts.goals],
+            ].map(([label, n]) => (
+              <li key={label} className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60">
+                <span className="block text-xs text-slate-500 dark:text-slate-400">{label}</span>
+                <span className="num font-semibold">{fmt0(n)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            รวมถึงยอดยกมา หมายเหตุรายเดือน ทรัพย์สิน/หนี้สิน และรายการภาษีทั้งหมด —
+            บัญชีผู้ใช้จะยังอยู่ เข้าใช้งานต่อได้แต่เริ่มจากศูนย์
+          </p>
+        </div>
+
+        <button onClick={onExport} className="btn-outline w-full">
+          <Download size={16} /> ดาวน์โหลดข้อมูลเก็บไว้ก่อน
+        </button>
+
+        <Field label={`พิมพ์ "${WIPE_PHRASE}" เพื่อยืนยัน`}>
+          <input
+            autoFocus
+            className="input"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={WIPE_PHRASE}
+            autoComplete="off"
+          />
+        </Field>
+      </div>
+    </Modal>
   )
 }
