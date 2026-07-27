@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Rocket, NotebookPen, Target, Scale, PiggyBank, PieChart,
+  LayoutDashboard, Rocket, NotebookPen, PiggyBank, PieChart,
   TrendingUp, Landmark, CheckSquare, Receipt, Settings as SettingsIcon,
   Wallet, Menu, X, Sun, Moon, LogOut, ChevronLeft,
 } from 'lucide-react'
@@ -13,11 +13,7 @@ const NAV = [
   { group: 'ภาพรวม', items: [
     { to: '/', icon: LayoutDashboard, label: 'ภาพรวม', end: true },
     { to: '/milestone', icon: Rocket, label: 'เส้นทางสู่เป้า' },
-  ]},
-  { group: 'บันทึกรายเดือน', items: [
     { to: '/actual', icon: NotebookPen, label: 'บันทึกจริง' },
-    { to: '/plan', icon: Target, label: 'แผนการเงิน' },
-    { to: '/compare', icon: Scale, label: 'แผน vs จริง' },
   ]},
   { group: 'ความมั่งคั่ง', items: [
     { to: '/savings', icon: PiggyBank, label: 'เงินสะสม' },

@@ -97,7 +97,7 @@ function Cell({ value, status, onSave, onCycleStatus, showStatus, isCurrentMonth
   )
 }
 
-export default function Grid({ type }) {
+export default function Grid() {
   const { year } = useYear()
   const { data, isLoading, error, refetch } = useFinanceData()
   const { data: notes } = useMonthNotes(year)
@@ -117,7 +117,7 @@ export default function Grid({ type }) {
   const [noteModal, setNoteModal] = useState(null)
   const [copyModal, setCopyModal] = useState(false)
 
-  const isActual = type === 'actual'
+  const type = 'actual'
   const thisYear = new Date().getFullYear()
   const currentMonth = year === thisYear ? new Date().getMonth() + 1 : null
 
@@ -128,8 +128,8 @@ export default function Grid({ type }) {
   )
 
   const grid = useMemo(
-    () => yearGrid(year, type, categories, data?.entries ?? []),
-    [year, type, categories, data?.entries],
+    () => yearGrid(year, 'actual', categories, data?.entries ?? []),
+    [year, categories, data?.entries],
   )
 
   const noteByMonth = useMemo(
@@ -140,11 +140,11 @@ export default function Grid({ type }) {
   const handleSave = useCallback(
     (categoryId, month, amount, status) => {
       saveEntry.mutate(
-        { categoryId, year, month, type, amount, status },
+        { categoryId, year, month, type: 'actual', amount, status },
         { onError: (e) => toast.error(`บันทึกไม่สำเร็จ: ${e.message}`) },
       )
     },
-    [saveEntry, year, type, toast],
+    [saveEntry, year, toast],
   )
 
   if (isLoading) return <Spinner />
@@ -163,12 +163,8 @@ export default function Grid({ type }) {
   return (
     <>
       <PageHeader
-        title={isActual ? 'บันทึกจริง' : 'แผนการเงิน'}
-        subtitle={
-          isActual
-            ? `ตัวเลขที่เกิดขึ้นจริงรายเดือน ปี ${year} — คลิกจุดซ้ายช่องเพื่อทำเครื่องหมายสถานะ`
-            : `เป้าหมายรายเดือนที่ตั้งไว้ล่วงหน้า ปี ${year} — ใช้เป็นเส้นฐานเทียบกับที่ทำได้จริง`
-        }
+        title="บันทึกจริง"
+        subtitle={`ตัวเลขรายรับ–รายจ่าย–เงินออม รายเดือน ปี ${year} — คลิกจุดซ้ายช่องเพื่อทำเครื่องหมายสถานะ`}
       >
         <button onClick={() => setShowArchived((v) => !v)} className="btn-outline" title="แสดง/ซ่อนรายการที่เก็บเข้าคลัง">
           {showArchived ? <Eye size={16} /> : <EyeOff size={16} />}
@@ -280,7 +276,7 @@ export default function Grid({ type }) {
                                 coord={[r, i]}
                                 value={months?.[i] || 0}
                                 status={statuses[i]}
-                                showStatus={isActual}
+                                showStatus
                                 isCurrentMonth={currentMonth === i + 1}
                                 tone={style.text}
                                 onSave={(v) => handleSave(cat.id, i + 1, v, statuses[i])}
@@ -381,7 +377,7 @@ export default function Grid({ type }) {
               </tr>
 
               {/* หมายเหตุรายเดือน (เฉพาะหน้าบันทึกจริง) */}
-              {isActual && (
+              {(
                 <tr className="bg-white dark:bg-slate-900">
                   <td className="sticky left-0 z-10 bg-white px-2 py-1.5 text-xs text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                     หมายเหตุ
@@ -447,7 +443,7 @@ export default function Grid({ type }) {
         onClose={() => setFillModal(null)}
         onFill={(vars) =>
           fillRow.mutate(
-            { ...vars, year, type },
+            { ...vars, year, type: 'actual' },
             {
               onSuccess: () => { toast.success('กรอกให้เรียบร้อยแล้ว'); setFillModal(null) },
               onError: (e) => toast.error(e.message),
@@ -473,7 +469,6 @@ export default function Grid({ type }) {
       <CopyModal
         open={copyModal}
         year={year}
-        type={type}
         onClose={() => setCopyModal(false)}
         onCopy={(vars) =>
           copyYear.mutate(vars, {
@@ -719,59 +714,55 @@ function NoteModal({ state, onClose, onSave }) {
   )
 }
 
-function CopyModal({ open, year, type, onClose, onCopy }) {
-  const [target, setTarget] = useState('plan-from-actual')
+function CopyModal({ open, year, onClose, onCopy }) {
   const [toYear, setToYear] = useState(year + 1)
   if (!open) return null
 
-  const OPTIONS = [
-    { id: 'plan-from-actual', label: `ตั้งแผนปี ${year} จากตัวเลขจริงปี ${year}`, desc: 'คัดลอก บันทึกจริง → แผนการเงิน ในปีเดียวกัน', vars: { year, from: 'actual', to: 'plan' } },
-    { id: 'actual-from-plan', label: `เติมบันทึกจริงปี ${year} จากแผนปี ${year}`, desc: 'คัดลอก แผนการเงิน → บันทึกจริง เพื่อใช้เป็นตัวตั้งต้นแล้วค่อยแก้', vars: { year, from: 'plan', to: 'actual' } },
-    { id: 'next-year', label: `สร้างข้อมูลปี ${toYear} จากปี ${year}`, desc: `คัดลอก ${type === 'actual' ? 'บันทึกจริง' : 'แผนการเงิน'} ทั้งปีไปยังปีถัดไป`, vars: { year, from: type, to: type, toYear } },
-  ]
-  const selected = OPTIONS.find((o) => o.id === target)
+  const valid = toYear >= 1900 && toYear <= 2200 && toYear !== year
 
   return (
     <Modal
       open
       onClose={onClose}
-      title="คัดลอกข้อมูล"
+      title="คัดลอกข้อมูลไปอีกปี"
       footer={
         <>
           <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
-          <button onClick={() => onCopy(selected.vars)} className="btn-primary">คัดลอก</button>
+          <button
+            onClick={() => onCopy({ year, from: 'actual', to: 'actual', toYear })}
+            disabled={!valid}
+            className="btn-primary"
+          >
+            คัดลอก
+          </button>
         </>
       }
     >
-      <div className="space-y-2">
-        <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-          ข้อมูลปลายทางที่มีอยู่เดิมจะถูกเขียนทับทั้งหมด
+      <div className="space-y-4">
+        <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+          คัดลอกตัวเลขทั้ง 12 เดือนของปี <strong className="num">{year}</strong> ไปเป็นตัวตั้งต้นของอีกปีหนึ่ง
+          แล้วค่อยเข้าไปแก้เฉพาะช่องที่ต่าง — เร็วกว่ากรอกใหม่ทั้งปี
         </p>
-        {OPTIONS.map((o) => (
-          <label
-            key={o.id}
-            className={`flex cursor-pointer items-start gap-2.5 rounded-lg border-2 p-3 transition ${
-              target === o.id
-                ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/40'
-                : 'border-slate-200 hover:border-slate-300 dark:border-slate-700'
-            }`}
-          >
-            <input type="radio" checked={target === o.id} onChange={() => setTarget(o.id)} className="mt-1 size-4 accent-indigo-600" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">{o.label}</span>
-              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{o.desc}</span>
-              {o.id === 'next-year' && target === 'next-year' && (
-                <input
-                  type="number"
-                  className="input mt-2 w-28"
-                  value={toYear}
-                  onChange={(e) => setToYear(Number(e.target.value))}
-                  onClick={(e) => e.preventDefault()}
-                />
-              )}
-            </span>
-          </label>
-        ))}
+
+        <Field label="คัดลอกไปยังปี">
+          <input
+            type="number"
+            autoFocus
+            className="input num w-32 text-right"
+            value={toYear}
+            onChange={(e) => setToYear(Number(e.target.value))}
+          />
+        </Field>
+
+        {valid ? (
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+            ⚠️ ข้อมูลเดิมของปี <strong className="num">{toYear}</strong> ที่มีอยู่จะถูกเขียนทับทั้งหมด
+          </p>
+        ) : (
+          <p className="text-sm text-rose-600 dark:text-rose-400">
+            {toYear === year ? 'ปีปลายทางต้องไม่ใช่ปีเดียวกับต้นทาง' : 'กรุณาใส่ปีระหว่าง 1900–2200'}
+          </p>
+        )}
       </div>
     </Modal>
   )

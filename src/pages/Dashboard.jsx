@@ -207,43 +207,6 @@ export default function Dashboard() {
             </ChartCard>
           </div>
 
-          {/* ---------- แผน vs จริง ---------- */}
-          <Section
-            title="แผน vs ที่ทำได้จริง"
-            subtitle={d.isCurYear ? 'เทียบยอดรวมทั้งปี' : `ปี ${year}`}
-            right={
-              <Link to="/compare" className="btn-ghost text-sm">
-                ดูละเอียด <ArrowRight size={14} />
-              </Link>
-            }
-          >
-            <div className="grid gap-4 sm:grid-cols-3">
-              {d.planVsActual.map((p) => (
-                <div key={p.section}>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{p.label}</span>
-                    <span className={`num text-xs font-semibold ${p.good ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                      {p.pct === null ? '—' : fmtPct(p.pct, 0)}
-                    </span>
-                  </div>
-                  <ProgressBar
-                    value={p.actual}
-                    max={p.plan || p.actual}
-                    tone={p.section}
-                    showPct={false}
-                    height="h-2.5"
-                  />
-                  <p className="num mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    {fmt0(p.actual)} / {fmt0(p.plan)}
-                    <span className={`ml-1.5 ${p.diff >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                      ({fmtSigned(p.diff)})
-                    </span>
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Section>
-
           {/* ---------- สัดส่วน ---------- */}
           <div className="grid gap-4 xl:grid-cols-2">
             <ChartCard

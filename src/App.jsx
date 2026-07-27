@@ -8,7 +8,6 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Milestone from './pages/Milestone'
 import Grid from './pages/Grid'
-import Compare from './pages/Compare'
 import Savings from './pages/Savings'
 import Allocation from './pages/Allocation'
 import Portfolio from './pages/Portfolio'
@@ -46,9 +45,7 @@ export default function App() {
                 <Routes>
                   <Route index element={<Dashboard />} />
                   <Route path="milestone" element={<Milestone />} />
-                  <Route path="actual" element={<Grid type="actual" />} />
-                  <Route path="plan" element={<Grid type="plan" />} />
-                  <Route path="compare" element={<Compare />} />
+                  <Route path="actual" element={<Grid />} />
                   <Route path="savings" element={<Savings />} />
                   <Route path="allocation" element={<Allocation />} />
                   <Route path="portfolio" element={<Portfolio />} />

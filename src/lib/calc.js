@@ -184,25 +184,6 @@ export function allocation(accumRows, view = 'current') {
   return { view: key, total, items: items.map((i) => ({ ...i, pct: total ? i.value / total : 0 })) }
 }
 
-export function planVsActual(year, categories, entries) {
-  const plan = yearGrid(year, 'plan', categories, entries)
-  const actual = yearGrid(year, 'actual', categories, entries)
-  return SECTIONS.map((s) => {
-    const p = plan.sectionTotal[s]
-    const a = actual.sectionTotal[s]
-    return {
-      section: s,
-      label: SECTION_LABEL[s],
-      plan: p,
-      actual: a,
-      diff: a - p,
-      pct: p ? a / p : null,
-      // รายจ่าย: ทำได้ "ดี" คือต่ำกว่าแผน — ตัวอื่นคือสูงกว่าแผน
-      good: s === 'expense' ? a <= p : a >= p,
-    }
-  })
-}
-
 export function balanceSheet(assets, portfolioRows, accumTotal) {
   const portTotal = portfolioRows.reduce((s, p) => s + n(p.market_value), 0)
   const rows = assets.map((r) => ({
@@ -368,7 +349,6 @@ export function dashboard(year, data, today = new Date()) {
   const nowMonth = isCurYear ? today.getMonth() + 1 : 12
 
   const actual = yearGrid(year, 'actual', categories, entries)
-  const plan = yearGrid(year, 'plan', categories, entries)
 
   const ytd = { income: 0, saving: 0, expense: 0 }
   for (let m = 0; m < nowMonth; m++) {
@@ -447,7 +427,6 @@ export function dashboard(year, data, today = new Date()) {
     isCurYear,
     isFutureYear,
     actual,
-    plan,
     ytd,
     curMonth: monthSummary(nowMonth - 1),
     prevMonth: monthSummary(nowMonth - 2),
@@ -461,7 +440,6 @@ export function dashboard(year, data, today = new Date()) {
     totalLiability: bs.totalLiability,
     balanceSheet: bs,
     portfolio: port,
-    planVsActual: planVsActual(year, categories, entries),
     allocation: allocation(accum, isFutureYear ? 'projected' : 'current'),
     expenseByCat,
     goals: { total: goals.length, done: goals.filter((g) => g.done).length, items: goals },
