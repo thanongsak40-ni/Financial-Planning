@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PiggyBank, Pencil, Info } from 'lucide-react'
+import { PiggyBank, Pencil } from 'lucide-react'
 import { useFinanceData, useSaveCarryOver } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
@@ -30,15 +30,8 @@ export default function Savings() {
     [data, year],
   )
 
-  // สัดส่วน + สมดุลความเสี่ยง คิดจากข้อมูลชุดเดียวกับตาราง แค่คนละมุมมอง
-  const { alloc, risk } = useMemo(() => {
-    const a = allocation(rows, view)
-    const key = view === 'opening' ? 'opening' : view === 'projected' ? 'projected' : 'current'
-    const pick = (r) => Math.max(0, r[key] ?? r.projected)
-    const invest = rows.filter((r) => r.is_investment).reduce((s, r) => s + pick(r), 0)
-    const safe = rows.filter((r) => !r.is_investment).reduce((s, r) => s + pick(r), 0)
-    return { alloc: a, risk: { invest, safe, total: invest + safe } }
-  }, [rows, view])
+  // สัดส่วนคิดจากข้อมูลชุดเดียวกับตาราง แค่เปลี่ยนมุมมอง
+  const alloc = useMemo(() => allocation(rows, view), [rows, view])
 
   if (isLoading) return <Spinner />
   if (error) return <ErrorBox error={error} onRetry={refetch} />
@@ -55,6 +48,11 @@ export default function Savings() {
   const isFuture = year > thisYear
   const capped = capSeries(alloc.items, 6)
   const viewLabel = { opening: `ต้นปี ${year}`, current: 'ปัจจุบัน', projected: `สิ้นปี ${year}` }[view]
+
+  // ให้จุดสีในรายการตรงกับชิ้นในโดนัท — รายการที่ถูกยุบเป็น "อื่น ๆ" ใช้สีเทาเดียวกัน
+  const shown = capped.folded > 0 ? capped.items.length - 1 : capped.items.length
+  const sliceColor = (i) =>
+    i < shown ? colors.categorical[i % colors.categorical.length] : colors.chrome.axis
 
   return (
     <>
@@ -80,14 +78,6 @@ export default function Savings() {
             <StatCard label="ใส่เพิ่มปีนี้" value={totals.added} tone="saving" hint={isFuture ? 'ตามที่วางแผนไว้' : 'ถึงเดือนปัจจุบัน'} />
             <StatCard label={isFuture ? 'คาดว่าจะมี' : 'ยอด ณ ปัจจุบัน'} value={totals.current} tone="brand" />
             <StatCard label="คาดการณ์สิ้นปี" value={totals.projected} tone="income" />
-          </div>
-
-          <div className="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">
-            <Info size={17} className="mt-px shrink-0" />
-            <p>
-              <strong>ยอดยกมา</strong> ถ้าไม่ได้กรอกเอง ระบบจะคำนวณต่อจากยอดสะสมสิ้นปีก่อนให้อัตโนมัติ —
-              กดไอคอนดินสอเพื่อระบุยอดจริงเองได้ (แนะนำให้ทำครั้งเดียวตอนเริ่มใช้ระบบ)
-            </p>
           </div>
 
           {/* ---------- สัดส่วน + สมดุลความเสี่ยง (ตามมุมมองที่เลือกด้านบน) ---------- */}
@@ -118,45 +108,27 @@ export default function Savings() {
                 />
               </ChartCard>
 
-              <Section title="สมดุลความเสี่ยง" subtitle={`มุมมอง${viewLabel}`}>
-                <div className="space-y-4">
-                  <div>
-                    <div className="mb-1.5 flex items-baseline justify-between text-sm">
-                      <span className="flex items-center gap-1.5">
-                        <span className="size-2.5 rounded-full" style={{ background: colors.section.income }} />
-                        ออมความเสี่ยงต่ำ
-                      </span>
-                      <span className="num font-semibold">
-                        {fmt0(risk.safe)}
-                        <span className="ml-1.5 text-xs font-normal text-slate-400">
-                          {fmtPct(risk.total ? risk.safe / risk.total : 0, 0)}
+              <Section
+                title="รายการ สัดส่วน และจำนวน"
+                subtitle={`มุมมอง${viewLabel} — เรียงจากมากไปน้อย`}
+              >
+                <ul className="space-y-3">
+                  {alloc.items.map((item, i) => (
+                    <li key={item.name}>
+                      <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="size-2.5 shrink-0 rounded-full"
+                            style={{ background: sliceColor(i) }}
+                          />
+                          <span className="truncate">{item.name}</span>
                         </span>
-                      </span>
-                    </div>
-                    <ProgressBar value={risk.safe} max={risk.total} tone="income" showPct={false} height="h-2.5" />
-                  </div>
-
-                  <div>
-                    <div className="mb-1.5 flex items-baseline justify-between text-sm">
-                      <span className="flex items-center gap-1.5">
-                        <span className="size-2.5 rounded-full" style={{ background: colors.section.saving }} />
-                        ลงทุน (มูลค่าขึ้นลงตามตลาด)
-                      </span>
-                      <span className="num font-semibold">
-                        {fmt0(risk.invest)}
-                        <span className="ml-1.5 text-xs font-normal text-slate-400">
-                          {fmtPct(risk.total ? risk.invest / risk.total : 0, 0)}
-                        </span>
-                      </span>
-                    </div>
-                    <ProgressBar value={risk.invest} max={risk.total} tone="saving" showPct={false} height="h-2.5" />
-                  </div>
-                </div>
-
-                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-                  ไม่มีสัดส่วนที่ถูกต้องเพียงแบบเดียว — โดยทั่วไปยิ่งอายุน้อยและมีเงินสำรองฉุกเฉินครบแล้ว
-                  ก็รับความเสี่ยงในฝั่งลงทุนได้มากขึ้น
-                </p>
+                        <span className="num shrink-0 font-medium">{fmt0(item.value)}</span>
+                      </div>
+                      <ProgressBar value={item.value} max={alloc.total} tone="brand" />
+                    </li>
+                  ))}
+                </ul>
               </Section>
             </div>
           )}
