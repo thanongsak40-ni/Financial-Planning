@@ -10,8 +10,20 @@ const MESSAGES = {
   'Email not confirmed': 'ยังไม่ได้ยืนยันอีเมล — กรุณาเช็คกล่องจดหมาย',
   'User already registered': 'อีเมลนี้สมัครไว้แล้ว ลองเข้าสู่ระบบแทน',
   'Password should be at least 6 characters': 'รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร',
+  'Signups not allowed for this instance': 'ระบบปิดรับสมัครสมาชิกใหม่อยู่',
+  'Email rate limit exceeded': 'ส่งอีเมลถี่เกินไป รอสักครู่แล้วลองใหม่',
 }
-const translate = (msg) => MESSAGES[msg] || msg
+
+function translate(msg = '') {
+  if (MESSAGES[msg]) return MESSAGES[msg]
+  // Supabase ตอบว่า "Unsupported provider: provider is not enabled"
+  // เมื่อยังไม่ได้ตั้งค่า OAuth — บอกให้ชัดว่าต้องไปทำอะไร
+  if (/provider is not enabled|Unsupported provider/i.test(msg)) {
+    return 'ยังไม่ได้เปิดใช้งานการล็อกอินด้วย Google ใน Supabase — ใช้อีเมล/รหัสผ่านด้านล่างไปก่อนได้ (วิธีเปิด Google อยู่ใน README)'
+  }
+  if (/fetch|network/i.test(msg)) return 'ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบอินเทอร์เน็ตหรือค่าใน .env'
+  return msg
+}
 
 function GoogleIcon() {
   return (
