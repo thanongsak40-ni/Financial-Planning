@@ -1,0 +1,228 @@
+import { useState, useRef } from 'react'
+import { Rocket, Download, ShieldAlert, KeyRound, Loader2 } from 'lucide-react'
+import { useFinanceData, useUpdateProfile, useWipeMyData } from '../hooks/useData'
+import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../components/Toast'
+import { PageHeader, Spinner, ErrorBox, Section, Field, MoneyInput, ConfirmButton } from '../components/ui'
+import { fmt0, fmtDate } from '../lib/format'
+
+export default function Settings() {
+  const { data, isLoading, error, refetch } = useFinanceData()
+  const { user, updatePassword } = useAuth()
+  const updateProfile = useUpdateProfile()
+  const wipe = useWipeMyData()
+  const toast = useToast()
+
+  const [profile, setProfile] = useState(null)
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const loaded = useRef(false)
+
+  if (data && !loaded.current) {
+    loaded.current = true
+    setProfile({
+      display_name: data.profile?.display_name ?? '',
+      birth_date: data.profile?.birth_date ?? '',
+      target_age: data.profile?.target_age ?? '',
+      target_amount: Number(data.profile?.target_amount) || 0,
+    })
+  }
+
+  if (isLoading || !profile) return <Spinner />
+  if (error) return <ErrorBox error={error} onRetry={refetch} />
+
+  const set = (k, v) => setProfile((p) => ({ ...p, [k]: v }))
+
+  const goalYear =
+    profile.birth_date && profile.target_age
+      ? new Date(profile.birth_date).getFullYear() + Number(profile.target_age)
+      : null
+
+  const saveProfile = () =>
+    updateProfile.mutate(
+      {
+        display_name: profile.display_name || null,
+        birth_date: profile.birth_date || null,
+        target_age: profile.target_age ? Number(profile.target_age) : null,
+        target_amount: profile.target_amount || null,
+      },
+      {
+        onSuccess: () => toast.success('บันทึกแล้ว'),
+        onError: (e) => toast.error(e.message),
+      },
+    )
+
+  async function changePassword() {
+    if (password.length < 6) return toast.error('รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร')
+    setBusy(true)
+    try {
+      await updatePassword(password)
+      setPassword('')
+      toast.success('เปลี่ยนรหัสผ่านแล้ว')
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** ดาวน์โหลดข้อมูลทั้งหมดเป็น JSON — ข้อมูลเป็นของผู้ใช้ ต้องเอาออกไปได้เสมอ */
+  function exportData() {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      profile: data.profile,
+      categories: data.categories,
+      entries: data.entries,
+      carry_over: data.carryOver,
+      portfolio: data.portfolio,
+      assets: data.assets,
+      goals: data.goals,
+      tax_items: data.taxItems,
+      recurring: data.recurring,
+      settings: data.settings,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `finance-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('ดาวน์โหลดไฟล์สำรองข้อมูลแล้ว')
+  }
+
+  return (
+    <>
+      <PageHeader title="ตั้งค่า" subtitle="ข้อมูลส่วนตัว เป้าหมายระยะยาว และการจัดการบัญชี" />
+
+      <div className="grid max-w-3xl gap-5">
+        {/* ---------- โปรไฟล์ ---------- */}
+        <Section title="ข้อมูลส่วนตัว" subtitle={`บัญชี ${user?.email}`}>
+          <div className="space-y-4">
+            <Field label="ชื่อที่ใช้แสดง">
+              <input className="input" value={profile.display_name} onChange={(e) => set('display_name', e.target.value)} placeholder="ชื่อของคุณ" />
+            </Field>
+            <Field label="วันเกิด" hint="ใช้คำนวณว่าเหลือเวลาอีกเท่าไรถึงเป้าหมาย">
+              <input type="date" className="input" value={profile.birth_date || ''} onChange={(e) => set('birth_date', e.target.value)} />
+            </Field>
+            <button onClick={saveProfile} disabled={updateProfile.isPending} className="btn-primary">
+              {updateProfile.isPending && <Loader2 size={16} className="animate-spin" />}
+              บันทึกข้อมูลส่วนตัว
+            </button>
+          </div>
+        </Section>
+
+        {/* ---------- เป้าหมายระยะยาว ---------- */}
+        <Section
+          title={<span className="flex items-center gap-2"><Rocket size={17} className="text-indigo-500" /> เป้าหมายระยะยาว</span>}
+          subtitle="ตั้งไว้แล้วหน้า 'เส้นทางสู่เป้า' จะคำนวณให้ว่าต้องออมเดือนละเท่าไร และตอนนี้ไปถึงไหนแล้ว"
+        >
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="อยากไปให้ถึงตอนอายุ (ปี)">
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  className="input num text-right"
+                  value={profile.target_age}
+                  onChange={(e) => set('target_age', e.target.value)}
+                  placeholder="เช่น 40"
+                />
+              </Field>
+              <Field label="จำนวนเงินที่ตั้งใจจะมี (บาท)">
+                <MoneyInput value={profile.target_amount} onChange={(v) => set('target_amount', v)} />
+              </Field>
+            </div>
+
+            {goalYear && profile.target_amount > 0 && (
+              <p className="rounded-lg bg-indigo-50 px-3 py-2.5 text-sm text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
+                เป้าหมาย: มีเงินออม/ลงทุนสะสม <strong className="num">{fmt0(profile.target_amount)}</strong> บาท
+                ภายในปี <strong className="num">{goalYear}</strong>
+                {profile.birth_date && (
+                  <> (ประมาณ {fmtDate(new Date(goalYear, new Date(profile.birth_date).getMonth(), new Date(profile.birth_date).getDate()))})</>
+                )}
+              </p>
+            )}
+            {!profile.birth_date && (
+              <p className="text-sm text-amber-600 dark:text-amber-400">ต้องกรอกวันเกิดด้านบนก่อน ระบบถึงจะคำนวณเส้นทางให้ได้</p>
+            )}
+
+            <button onClick={saveProfile} disabled={updateProfile.isPending} className="btn-primary">
+              {updateProfile.isPending && <Loader2 size={16} className="animate-spin" />}
+              บันทึกเป้าหมาย
+            </button>
+          </div>
+        </Section>
+
+        {/* ---------- รหัสผ่าน ---------- */}
+        <Section
+          title={<span className="flex items-center gap-2"><KeyRound size={17} /> เปลี่ยนรหัสผ่าน</span>}
+          subtitle="ถ้าเข้าระบบด้วย Google อย่างเดียว ไม่จำเป็นต้องตั้งรหัสผ่าน"
+        >
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="password"
+              className="input flex-1"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)"
+              autoComplete="new-password"
+            />
+            <button onClick={changePassword} disabled={busy || password.length < 6} className="btn-outline shrink-0">
+              {busy && <Loader2 size={16} className="animate-spin" />}
+              เปลี่ยนรหัสผ่าน
+            </button>
+          </div>
+        </Section>
+
+        {/* ---------- ข้อมูลของคุณ ---------- */}
+        <Section
+          title={<span className="flex items-center gap-2"><Download size={17} /> ข้อมูลของคุณ</span>}
+          subtitle="ข้อมูลการเงินเป็นของคุณ — ดาวน์โหลดออกไปเก็บเองได้ตลอดเวลา"
+        >
+          <div className="mb-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            {[
+              ['รายการ', data.categories.length],
+              ['ตัวเลขรายเดือน', data.entries.length],
+              ['สินทรัพย์ในพอร์ต', data.portfolio.length],
+              ['เป้าหมาย', data.goals.length],
+            ].map(([label, n]) => (
+              <div key={label} className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+                <p className="num font-semibold">{fmt0(n)}</p>
+              </div>
+            ))}
+          </div>
+          <button onClick={exportData} className="btn-outline">
+            <Download size={16} /> ดาวน์โหลดข้อมูลทั้งหมด (JSON)
+          </button>
+        </Section>
+
+        {/* ---------- โซนอันตราย ---------- */}
+        <section className="card-pad border-rose-200 dark:border-rose-900">
+          <header className="mb-3">
+            <h2 className="flex items-center gap-2 font-semibold text-rose-700 dark:text-rose-400">
+              <ShieldAlert size={17} /> โซนอันตราย
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              การกระทำในส่วนนี้ย้อนกลับไม่ได้ — แนะนำให้ดาวน์โหลดข้อมูลเก็บไว้ก่อน
+            </p>
+          </header>
+          <ConfirmButton
+            onConfirm={() =>
+              wipe.mutate(undefined, {
+                onSuccess: () => toast.success('ล้างข้อมูลทั้งหมดแล้ว'),
+                onError: (e) => toast.error(e.message),
+              })
+            }
+            className="btn-outline !border-rose-300 !text-rose-700 dark:!border-rose-800 dark:!text-rose-400"
+            confirmLabel="ยืนยันล้างข้อมูลทั้งหมด? กดอีกครั้ง"
+          >
+            ล้างข้อมูลการเงินทั้งหมดของฉัน
+          </ConfirmButton>
+        </section>
+      </div>
+    </>
+  )
+}

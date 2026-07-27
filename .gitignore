@@ -1,0 +1,24 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# ความลับ — ห้าม commit เด็ดขาด
+.env
+.env.*
+!.env.example
+
+# ข้อมูลการเงินจริง
+*.xlsx
+*.xls
+finance-backup-*.json
+
+# ระบบปฏิบัติการ / เอดิเตอร์
+.DS_Store
+._*
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
+npm-debug.log*
+.vercel

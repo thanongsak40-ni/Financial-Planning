@@ -1,0 +1,127 @@
+@import 'tailwindcss';
+
+/* เปิดโหมดมืดด้วย class .dark บน <html> (ไม่ใช่ media query อย่างเดียว) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* สีความหมายทางการเงิน — ใช้ทั้งแอปให้อ่านง่ายตรงกัน */
+  --color-income: oklch(0.68 0.15 155);   /* เขียว = เงินเข้า */
+  --color-saving: oklch(0.62 0.16 255);   /* น้ำเงิน = เงินออม/ลงทุน */
+  --color-expense: oklch(0.63 0.19 22);   /* แดง = เงินออก */
+  --color-brand: oklch(0.58 0.19 275);    /* ม่วง = แบรนด์ */
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-200;
+    font-family: var(--font-sans);
+  }
+  /* ตัวเลขทางการเงินใช้ฟอนต์ monospace + tabular ให้หลักตรงกันทุกแถว */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-300 dark:bg-slate-700;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-slate-600;
+  }
+  /* ซ่อนลูกศรเพิ่ม/ลดของ input[type=number] */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-indigo-500;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
+  }
+  .card-pad {
+    @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900;
+  }
+  /* ฐานร่วมของปุ่มทุกแบบ — ไล่ชื่อคลาสในซีเล็กเตอร์เดียว
+     (Tailwind v4 ไม่อนุญาตให้ @apply คลาสที่นิยามเองใน layer เดียวกัน) */
+  .btn,
+  .btn-primary,
+  .btn-ghost,
+  .btn-outline,
+  .btn-danger {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-indigo-600 text-white hover:bg-indigo-500 active:bg-indigo-700;
+  }
+  .btn-ghost {
+    @apply text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
+  }
+  .btn-outline {
+    @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50
+           dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
+  }
+  .btn-danger {
+    @apply bg-rose-600 text-white hover:bg-rose-500;
+  }
+  .input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition
+           placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none
+           dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-600;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .th {
+    @apply px-2 py-2 text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400;
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    animation: fade-in-up 0.25s ease-out both;
+  }
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .skeleton {
+    @apply animate-pulse rounded bg-slate-200 dark:bg-slate-800;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
