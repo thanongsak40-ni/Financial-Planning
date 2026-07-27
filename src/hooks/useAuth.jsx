@@ -45,7 +45,13 @@ export function AuthProvider({ children }) {
   const signInWithGoogle = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: {
+        redirectTo: window.location.origin,
+        // บังคับให้เลือกบัญชีทุกครั้ง แทนที่ Google จะเลือกให้เองเมื่อมีบัญชีเดียว
+        // ที่ต้องทำเพราะเป็นระบบการเงิน — คนที่มีหลายบัญชีในเครื่องเดียวกัน
+        // อาจเผลอเข้าผิดบัญชีแล้วกรอกข้อมูลลงไปโดยไม่รู้ตัว
+        queryParams: { prompt: 'select_account' },
+      },
     })
     if (error) throw error
   }, [])
