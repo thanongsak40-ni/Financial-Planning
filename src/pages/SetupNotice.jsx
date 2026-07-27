@@ -37,7 +37,7 @@ export default function SetupNotice() {
                 <p className="font-medium">สร้างไฟล์ <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">.env</code> ที่รากโปรเจกต์</p>
                 <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100 dark:bg-slate-950">
 {`VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGci...`}
+VITE_SUPABASE_ANON_KEY=<anon public key>`}
                 </pre>
               </div>
             </li>

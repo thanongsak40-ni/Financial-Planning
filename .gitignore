@@ -22,3 +22,7 @@ finance-backup-*.json
 *.log
 npm-debug.log*
 .vercel
+
+# เอกสารวิเคราะห์ที่มีตัวเลขการเงินจริง — เก็บในเครื่องเท่านั้น
+docs/RECOMMENDATIONS.md
+docs/*-ส่วนตัว*.md
