@@ -16,6 +16,9 @@ const TABLES = [
   ['goals', 'goals', { order: ['sort_order', { ascending: true }] }],
   ['taxItems', 'tax_items', {}],
   ['recurring', 'recurring', {}],
+  // optional = ถ้าตารางยังไม่มี (ยังไม่ได้รัน migration) ให้ถือว่าว่างเปล่า
+  // แทนที่จะทำให้ทั้งแอปโหลดไม่ขึ้น
+  ['snapshots', 'portfolio_snapshots', { order: ['captured_on', { ascending: true }], optional: true }],
 ]
 
 async function fetchAll(userId) {
@@ -28,9 +31,16 @@ async function fetchAll(userId) {
   queries.push(supabase.from('settings').select('*').eq('user_id', userId))
 
   const results = await Promise.all(queries)
-  for (const r of results) {
-    if (r.error) throw new Error(r.error.message)
-  }
+  results.forEach((r, i) => {
+    if (!r.error) return
+    if (TABLES[i]?.[2]?.optional) {
+      console.warn(`[finance-planner] ข้ามตาราง ${TABLES[i][1]}: ${r.error.message}`)
+      r.data = []
+      r.error = null
+      return
+    }
+    throw new Error(r.error.message)
+  })
 
   const out = {}
   TABLES.forEach(([key], i) => {
@@ -207,6 +217,77 @@ export function useSaveCarryOver() {
         .select(),
     ),
   )
+}
+
+// ---------------------------------------------------------------------------
+//  พอร์ตลงทุน
+// ---------------------------------------------------------------------------
+
+/**
+ * อัปเดตราคาหลายตัวรวดเดียว แล้วบันทึกสแนปช็อตมูลค่าพอร์ตของวันนี้ให้อัตโนมัติ
+ * (วันละ 1 แถว — อัปเดตซ้ำในวันเดิมจะเขียนทับ ไม่ทำให้ประวัติรก)
+ *
+ * @param updates [{ id, last_price }] หรือ [{ id, market_value }]
+ * @param totals  { totalCost, totalValue } ยอดรวมหลังอัปเดต ใช้เขียนสแนปช็อต
+ */
+export function useUpdatePrices() {
+  return useFinanceMutation(async ({ updates, totals }, userId) => {
+    const now = new Date().toISOString()
+    const res = await Promise.all(
+      updates.map((u) =>
+        supabase
+          .from('portfolio')
+          .update({
+            ...(u.last_price !== undefined ? { last_price: u.last_price } : {}),
+            ...(u.market_value !== undefined ? { market_value: u.market_value } : {}),
+            updated_at: now,
+          })
+          .match({ id: u.id, user_id: userId }),
+      ),
+    )
+    for (const r of res) if (r.error) throw new Error(r.error.message)
+
+    if (totals) await saveSnapshot(userId, totals)
+    return true
+  })
+}
+
+/** บันทึกมูลค่าพอร์ตของวันนี้ลงประวัติ */
+async function saveSnapshot(userId, { totalCost, totalValue }) {
+  const today = new Date()
+  const captured_on = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, '0'),
+    String(today.getDate()).padStart(2, '0'),
+  ].join('-')
+  const { error } = await supabase.from('portfolio_snapshots').upsert(
+    { user_id: userId, captured_on, total_cost: totalCost, total_value: totalValue },
+    { onConflict: 'user_id,captured_on' },
+  )
+  if (error) throw new Error(error.message)
+}
+
+export function useSaveSnapshot() {
+  return useFinanceMutation(async (totals, userId) => {
+    await saveSnapshot(userId, totals)
+    return true
+  })
+}
+
+/** ตั้งน้ำหนักเป้าหมายของหลายกลุ่มพร้อมกัน */
+export function useSaveTargetWeights() {
+  return useFinanceMutation(async ({ weights }, userId) => {
+    const res = await Promise.all(
+      Object.entries(weights).map(([id, w]) =>
+        supabase
+          .from('categories')
+          .update({ target_weight: w === '' || w === null ? null : Number(w) })
+          .match({ id, user_id: userId }),
+      ),
+    )
+    for (const r of res) if (r.error) throw new Error(r.error.message)
+    return true
+  })
 }
 
 // ---------------------------------------------------------------------------

@@ -197,6 +197,38 @@ export function DonutChart({ data, colors, total, height = 280, centerLabel, cen
 }
 
 // ---------------------------------------------------------------------------
+//  แท่งนอนแบบมีขั้วบวก/ลบ — กำไรกับขาดทุนแยกข้างจากเส้นศูนย์
+// ---------------------------------------------------------------------------
+
+export function DivergingBars({ data, height = 300, positiveColor, negativeColor, unit = '฿' }) {
+  const { chrome } = useChartColors()
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }} barCategoryGap="22%">
+        <CartesianGrid stroke={chrome.grid} strokeWidth={1} horizontal={false} />
+        <XAxis type="number" {...axisProps(chrome)} tickFormatter={fmtCompact} />
+        <YAxis
+          type="category"
+          dataKey="name"
+          {...axisProps(chrome)}
+          width={116}
+          tick={{ fill: chrome.text, fontSize: 11 }}
+          interval={0}
+        />
+        <Tooltip content={<TooltipBox unit={unit} />} cursor={{ fill: chrome.grid, opacity: 0.35 }} />
+        {/* เส้นศูนย์ต้องเห็นชัด เพราะเป็นตัวแบ่งกำไรกับขาดทุน */}
+        <ReferenceLine x={0} stroke={chrome.axis} strokeWidth={1.5} />
+        <Bar dataKey="value" name="กำไร/ขาดทุน" radius={[4, 4, 4, 4]} maxBarSize={18}>
+          {data.map((d) => (
+            <Cell key={d.name} fill={d.value >= 0 ? positiveColor : negativeColor} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+// ---------------------------------------------------------------------------
 //  ตารางคู่กราฟ
 // ---------------------------------------------------------------------------
 

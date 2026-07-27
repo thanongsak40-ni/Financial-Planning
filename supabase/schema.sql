@@ -35,6 +35,8 @@ create table if not exists public.categories (
   -- ใช้คำนวณว่าเงินสำรองครอบคลุมรายจ่ายได้กี่เดือน — อย่าติ๊กให้เงินเกษียณ
   -- หรือเงินที่ถอนมาใช้ทันทีไม่ได้ เพราะจะทำให้ตัวเลขดูดีเกินจริง
   is_emergency_fund boolean not null default false,
+  -- น้ำหนักเป้าหมายของพอร์ต % (เฉพาะ saving ที่ is_investment) ใช้คำนวณการปรับสมดุล
+  target_weight numeric(5,2) check (target_weight is null or (target_weight >= 0 and target_weight <= 100)),
   created_at    timestamptz not null default now()
 );
 create index if not exists categories_user_idx on public.categories(user_id, section, sort_order);
@@ -84,9 +86,24 @@ create table if not exists public.portfolio (
   name         text not null,
   cost         numeric(14,2) not null default 0,
   market_value numeric(14,2) not null default 0,
+  -- ถ้ากรอกทั้งคู่ ระบบจะคิด market_value = units × last_price ให้เอง
+  -- เว้นว่าง = กรอกมูลค่ารวมเองแบบเดิม
+  units        numeric(18,6),
+  last_price   numeric(18,6),
   year         int,
   updated_at   timestamptz not null default now()
 );
+
+-- ---------- 6b. ประวัติมูลค่าพอร์ต (วันละ 1 แถว) ----------
+create table if not exists public.portfolio_snapshots (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  captured_on date not null,
+  total_cost  numeric(14,2) not null default 0,
+  total_value numeric(14,2) not null default 0,
+  unique (user_id, captured_on)
+);
+create index if not exists portfolio_snapshots_idx on public.portfolio_snapshots(user_id, captured_on);
 create index if not exists portfolio_user_idx on public.portfolio(user_id);
 
 -- ---------- 7. ทรัพย์สิน / หนี้สิน ----------
@@ -155,6 +172,7 @@ alter table public.entries     enable row level security;
 alter table public.month_notes enable row level security;
 alter table public.carry_over  enable row level security;
 alter table public.portfolio   enable row level security;
+alter table public.portfolio_snapshots enable row level security;
 alter table public.assets      enable row level security;
 alter table public.goals       enable row level security;
 alter table public.tax_items   enable row level security;
@@ -172,7 +190,7 @@ declare t text;
 begin
   foreach t in array array[
     'categories','entries','month_notes','carry_over','portfolio',
-    'assets','goals','tax_items','recurring','settings'
+    'portfolio_snapshots','assets','goals','tax_items','recurring','settings'
   ] loop
     execute format('drop policy if exists "own rows" on public.%I', t);
     execute format(

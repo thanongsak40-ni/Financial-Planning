@@ -1,11 +1,19 @@
 import { useMemo, useState, useRef } from 'react'
-import { Plus, Pencil, TrendingUp, Trash2, Coins } from 'lucide-react'
-import { useFinanceData, useUpsertRow, useDeleteRow, useSetSetting } from '../hooks/useData'
+import { Plus, Pencil, TrendingUp, Trash2, Coins, Scale, History, Loader2, Info } from 'lucide-react'
+import {
+  useFinanceData, useUpsertRow, useDeleteRow, useSetSetting,
+  useUpdatePrices, useSaveTargetWeights,
+} from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
-import { PageHeader, Spinner, ErrorBox, Section, Empty, StatCard, Modal, Field, MoneyInput, ConfirmButton, Money } from '../components/ui'
-import { portfolioSummary } from '../lib/calc'
-import { fmt0, fmtPct, fmtSigned, fmtDate } from '../lib/format'
+import {
+  PageHeader, Spinner, ErrorBox, Section, Empty, StatCard,
+  Modal, Field, MoneyInput, ConfirmButton, Money, ProgressBar,
+} from '../components/ui'
+import { DonutChart, DivergingBars, TrendLines } from '../components/charts'
+import { useChartColors, capSeries } from '../lib/chartTheme'
+import { portfolioSummary, portfolioGroups, rebalance, UNGROUPED } from '../lib/calc'
+import { fmt0, fmt2, fmtPct, fmtSigned, fmtDate, fmtAgo } from '../lib/format'
 
 export default function Portfolio() {
   const { year } = useYear()
@@ -13,32 +21,70 @@ export default function Portfolio() {
   const upsert = useUpsertRow('portfolio')
   const del = useDeleteRow('portfolio')
   const setSetting = useSetSetting()
+  const updatePrices = useUpdatePrices()
+  const saveWeights = useSaveTargetWeights()
+  const colors = useChartColors()
   const toast = useToast()
+
   const [editing, setEditing] = useState(null)
   const [realCostModal, setRealCostModal] = useState(false)
+  const [weightModal, setWeightModal] = useState(false)
 
-  const summary = useMemo(() => {
+  const view = useMemo(() => {
     if (!data) return null
     const rows = (data.portfolio ?? []).filter((p) => !p.year || Number(p.year) === year)
-    return portfolioSummary(rows, data.settings?.real_cost)
+    const summary = portfolioSummary(rows, data.settings?.real_cost)
+    const groups = portfolioGroups(summary.items, data.categories ?? [])
+    return { summary, groups, rebal: rebalance(groups, data.categories ?? [], summary.totalValue) }
   }, [data, year])
 
   if (isLoading) return <Spinner />
   if (error) return <ErrorBox error={error} onRetry={refetch} />
 
+  const { summary, groups, rebal } = view
   const investCats = (data.categories ?? []).filter((c) => c.section === 'saving' && c.is_investment && c.active)
   const catName = Object.fromEntries((data.categories ?? []).map((c) => [c.id, c.name]))
+
+  const lastUpdated = summary.items.reduce((latest, p) => {
+    const t = p.updated_at ? new Date(p.updated_at) : null
+    return t && (!latest || t > latest) ? t : latest
+  }, null)
+
+  /** บันทึกราคาช่องเดียว แล้วเก็บสแนปช็อตมูลค่าพอร์ตของวันนี้ไปด้วย */
+  const savePrice = (item, value) => {
+    const patch = item.byUnits ? { last_price: value } : { market_value: value }
+    const nextValue = item.byUnits ? item.units * value : value
+    updatePrices.mutate(
+      {
+        updates: [{ id: item.id, ...patch }],
+        totals: {
+          totalCost: summary.realCost,
+          totalValue: summary.totalValue - item.market_value + nextValue,
+        },
+      },
+      { onError: (e) => toast.error(`บันทึกไม่สำเร็จ: ${e.message}`) },
+    )
+  }
 
   return (
     <>
       <PageHeader
         title="พอร์ตลงทุน"
-        subtitle="ราคาตลาดกรอกเอง — ใช้ดูกำไร/ขาดทุน และนำไปคิดความมั่งคั่งสุทธิ"
+        subtitle={
+          lastUpdated
+            ? `อัปเดตราคาล่าสุด ${fmtDate(lastUpdated)} · ${fmtAgo(lastUpdated)}`
+            : 'ราคาตลาดกรอกเอง — ใช้ดูกำไร/ขาดทุน และนำไปคิดความมั่งคั่งสุทธิ'
+        }
       >
         {summary.items.length > 0 && (
-          <button onClick={() => setRealCostModal(true)} className="btn-outline">
-            <Coins size={16} /> <span className="hidden sm:inline">ตั้งต้นทุนแท้จริง</span>
-          </button>
+          <>
+            <button onClick={() => setWeightModal(true)} className="btn-outline">
+              <Scale size={16} /> <span className="hidden sm:inline">น้ำหนักเป้าหมาย</span>
+            </button>
+            <button onClick={() => setRealCostModal(true)} className="btn-outline">
+              <Coins size={16} /> <span className="hidden sm:inline">ต้นทุนแท้จริง</span>
+            </button>
+          </>
         )}
         <button onClick={() => setEditing({})} className="btn-primary">
           <Plus size={16} /> เพิ่มสินทรัพย์
@@ -56,6 +102,7 @@ export default function Portfolio() {
         </Section>
       ) : (
         <div className="space-y-5">
+          {/* ---------- KPI ---------- */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label="ต้นทุนรวม" value={summary.realCost} tone="neutral" hint={summary.realCostSet ? 'ตั้งค่าเอง' : 'จากผลรวมรายการ'} />
             <StatCard label="มูลค่าปัจจุบัน" value={summary.totalValue} tone="brand" />
@@ -75,38 +122,192 @@ export default function Portfolio() {
             />
           </div>
 
-          <Section title="รายการในพอร์ต" subtitle="เรียงจากกำไรมากไปน้อย">
+          {/* ---------- สัดส่วนตามกลุ่ม + กำไร/ขาดทุนรายตัว ---------- */}
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Section title="สัดส่วนพอร์ตตามกลุ่ม" subtitle={`${groups.length} กลุ่ม · รวม ${fmt0(summary.totalValue)} บาท`}>
+              <div className="grid items-center gap-6 sm:grid-cols-[minmax(0,13rem)_1fr]">
+                <div className="h-52">
+                  <DonutChart
+                    data={capSeries(groups.map((g) => ({ name: g.name, value: g.value })), 6).items}
+                    colors={colors.categorical}
+                    total={summary.totalValue}
+                    centerLabel="รวม"
+                    centerValue={summary.totalValue}
+                    showLegend={false}
+                  />
+                </div>
+                <ul className="space-y-3">
+                  {groups.map((g, i) => (
+                    <li key={g.name}>
+                      <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="size-2.5 shrink-0 rounded-full"
+                            style={{ background: g.name === UNGROUPED ? colors.chrome.axis : colors.categorical[i % colors.categorical.length] }}
+                          />
+                          <span className="truncate">{g.name}</span>
+                          <span className="shrink-0 text-xs text-slate-400">({g.count})</span>
+                        </span>
+                        <span className="shrink-0">
+                          <span className="num font-medium">{fmt0(g.value)}</span>
+                          <span className="num ml-2 text-xs text-slate-400">{fmtPct(g.weight, 0)}</span>
+                        </span>
+                      </div>
+                      <ProgressBar value={g.value} max={summary.totalValue} tone="brand" showPct={false} height="h-1.5" />
+                      <p className={`num mt-0.5 text-xs ${g.gain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {fmtSigned(g.gain)} ({fmtPct(g.pct)})
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Section>
+
+            <Section title="กำไร/ขาดทุนรายตัว" subtitle="เรียงจากกำไรมากสุดถึงขาดทุนมากสุด">
+              <div style={{ height: Math.max(220, summary.items.length * 26 + 44) }}>
+                <DivergingBars
+                  data={summary.items.map((i) => ({ name: i.name, value: i.gain }))}
+                  positiveColor={colors.section.income}
+                  negativeColor={colors.section.expense}
+                />
+              </div>
+            </Section>
+          </div>
+
+          {/* ---------- ปรับสมดุลพอร์ต ---------- */}
+          <Section
+            title="น้ำหนักเป้าหมายและการปรับสมดุล"
+            subtitle={
+              rebal.rows.length === 0
+                ? 'ยังไม่ได้ตั้งน้ำหนักเป้าหมาย'
+                : rebal.balanced
+                  ? 'ทุกกลุ่มอยู่ในกรอบ ±5% ของเป้าหมาย'
+                  : 'มีกลุ่มที่เบี่ยงจากเป้าหมายเกิน 5%'
+            }
+            right={
+              rebal.rows.length > 0 && (
+                <button onClick={() => setWeightModal(true)} className="btn-ghost text-sm">
+                  <Scale size={14} /> แก้น้ำหนัก
+                </button>
+              )
+            }
+          >
+            {rebal.rows.length === 0 ? (
+              <Empty
+                icon={Scale}
+                title="ยังไม่ได้ตั้งน้ำหนักเป้าหมาย"
+                hint="กำหนดว่าอยากให้แต่ละกลุ่มมีสัดส่วนเท่าไร แล้วระบบจะบอกว่าตอนนี้เบี่ยงไปแค่ไหน และต้องซื้อ/ขายเท่าไรถึงกลับเข้าเป้า"
+                action={<button onClick={() => setWeightModal(true)} className="btn-primary"><Scale size={16} /> ตั้งน้ำหนักเป้าหมาย</button>}
+              />
+            ) : (
+              <>
+                {Math.abs(rebal.totalTarget - 100) > 0.5 && (
+                  <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                    น้ำหนักเป้าหมายรวมได้ <span className="num">{fmt2(rebal.totalTarget)}%</span> ไม่ใช่ 100% —
+                    ตัวเลขที่ต้องซื้อ/ขายจะคลาดเคลื่อน
+                  </p>
+                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800">
+                        <th className="th text-left">กลุ่ม</th>
+                        <th className="th text-right">มูลค่าตอนนี้</th>
+                        <th className="th text-right">น้ำหนักจริง</th>
+                        <th className="th text-right">เป้าหมาย</th>
+                        <th className="th text-right">เบี่ยง</th>
+                        <th className="th text-right">ต้องซื้อ / ขาย</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rebal.rows.map((r) => {
+                        const off = Math.abs(r.drift) > 0.05
+                        return (
+                          <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800/60">
+                            <td className="px-2 py-2">{r.name}</td>
+                            <td className="num px-2 py-2 text-right">{fmt0(r.value)}</td>
+                            <td className="num px-2 py-2 text-right">{fmtPct(r.weight)}</td>
+                            <td className="num px-2 py-2 text-right text-slate-500 dark:text-slate-400">{fmtPct(r.target)}</td>
+                            <td className={`num px-2 py-2 text-right ${off ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                              {r.drift >= 0 ? '+' : '−'}{fmtPct(Math.abs(r.drift))}
+                            </td>
+                            <td className="px-2 py-2 text-right">
+                              {Math.abs(r.diff) < 100 ? (
+                                <span className="text-xs text-slate-400">พอดีแล้ว</span>
+                              ) : (
+                                <span className={`num font-medium ${r.diff > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                                  {r.diff > 0 ? 'ซื้อเพิ่ม ' : 'ขายออก '}
+                                  {fmt0(Math.abs(r.diff))}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  คิดจากมูลค่าพอร์ตรวม <span className="num">{fmt0(summary.totalValue)}</span> บาท —
+                  ในทางปฏิบัติ การปรับสมดุลด้วยการ<strong>ซื้อฝั่งที่ขาด</strong>มักดีกว่าขายฝั่งที่เกิน
+                  เพราะไม่มีภาระภาษีและค่าธรรมเนียมจากการขาย
+                </p>
+              </>
+            )}
+          </Section>
+
+          {/* ---------- ประวัติมูลค่าพอร์ต ---------- */}
+          <HistorySection snapshots={data.snapshots ?? []} colors={colors} />
+
+          {/* ---------- รายการในพอร์ต ---------- */}
+          <Section
+            title="รายการในพอร์ต"
+            subtitle="แก้ราคาในตารางได้เลย — กด Enter บันทึกแล้วลงแถวถัดไป · ลูกศร ↑ ↓ เลื่อนขึ้นลง"
+          >
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800">
                     <th className="th text-left">สินทรัพย์</th>
-                    <th className="th text-left">อยู่ในกลุ่ม</th>
+                    <th className="th text-left">กลุ่ม</th>
+                    <th className="th text-right">จำนวนหน่วย</th>
                     <th className="th text-right">ต้นทุน</th>
+                    <th className="th w-32 text-right">
+                      ราคา/มูลค่า <span className="font-normal text-indigo-500 normal-case">แก้ได้</span>
+                    </th>
                     <th className="th text-right">มูลค่าปัจจุบัน</th>
                     <th className="th text-right">กำไร/ขาดทุน</th>
                     <th className="th text-right">%</th>
-                    <th className="th text-left">อัปเดตล่าสุด</th>
                     <th className="th w-10" />
                   </tr>
                 </thead>
                 <tbody>
-                  {summary.items.map((p) => (
+                  {summary.items.map((p, i) => (
                     <tr key={p.id} className="group border-b border-slate-100 last:border-0 dark:border-slate-800/60">
-                      <td className="px-2 py-2 font-medium">{p.name}</td>
-                      <td className="px-2 py-2 text-slate-500 dark:text-slate-400">
+                      <td className="px-2 py-1.5 font-medium">{p.name}</td>
+                      <td className="px-2 py-1.5 text-slate-500 dark:text-slate-400">
                         {catName[p.category_id] || <span className="text-slate-300 dark:text-slate-700">—</span>}
                       </td>
-                      <td className="num px-2 py-2 text-right text-slate-500 dark:text-slate-400">{fmt0(p.cost)}</td>
-                      <td className="num px-2 py-2 text-right font-medium">{fmt0(p.market_value)}</td>
-                      <td className="px-2 py-2 text-right">
+                      <td className="num px-2 py-1.5 text-right text-slate-500 dark:text-slate-400">
+                        {p.byUnits ? fmt2(p.units) : <span className="text-slate-300 dark:text-slate-700">—</span>}
+                      </td>
+                      <td className="num px-2 py-1.5 text-right text-slate-500 dark:text-slate-400">{fmt0(p.cost)}</td>
+                      <td className="p-0">
+                        <PriceCell
+                          rowIndex={i}
+                          value={p.byUnits ? p.last_price : p.market_value}
+                          decimals={p.byUnits}
+                          onSave={(v) => savePrice(p, v)}
+                        />
+                      </td>
+                      <td className="num px-2 py-1.5 text-right font-semibold">{fmt0(p.market_value)}</td>
+                      <td className="px-2 py-1.5 text-right">
                         <Money value={p.gain} signed tone={p.gain >= 0 ? 'income' : 'expense'} />
                       </td>
-                      <td className={`num px-2 py-2 text-right text-xs ${p.gain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      <td className={`num px-2 py-1.5 text-right text-xs ${p.gain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                         {fmtPct(p.pct)}
                       </td>
-                      <td className="px-2 py-2 text-xs text-slate-400">{fmtDate(p.updated_at)}</td>
-                      <td className="px-1 py-2">
+                      <td className="px-1 py-1.5">
                         <button onClick={() => setEditing(p)} className="btn-ghost !p-1 opacity-0 transition group-hover:opacity-100">
                           <Pencil size={13} />
                         </button>
@@ -116,8 +317,9 @@ export default function Portfolio() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-slate-200 font-bold dark:border-slate-700">
-                    <td colSpan={2} className="px-2 py-2.5">รวม</td>
+                    <td colSpan={3} className="px-2 py-2.5">รวม</td>
                     <td className="num px-2 py-2.5 text-right">{fmt0(summary.totalCost)}</td>
+                    <td />
                     <td className="num px-2 py-2.5 text-right">{fmt0(summary.totalValue)}</td>
                     <td className="px-2 py-2.5 text-right">
                       <Money value={summary.totalGain} signed tone={summary.totalGain >= 0 ? 'income' : 'expense'} />
@@ -125,25 +327,29 @@ export default function Portfolio() {
                     <td className={`num px-2 py-2.5 text-right text-xs ${summary.totalPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                       {fmtPct(summary.totalPct)}
                     </td>
-                    <td colSpan={2} />
+                    <td />
                   </tr>
                   {summary.realCostSet && summary.realCost !== summary.totalCost && (
                     <tr className="text-sm">
-                      <td colSpan={2} className="px-2 py-2 text-slate-500 dark:text-slate-400">
-                        คิดจากต้นทุนแท้จริง
-                      </td>
+                      <td colSpan={3} className="px-2 py-2 text-slate-500 dark:text-slate-400">คิดจากต้นทุนแท้จริง</td>
                       <td className="num px-2 py-2 text-right text-slate-500">{fmt0(summary.realCost)}</td>
+                      <td />
                       <td className="num px-2 py-2 text-right text-slate-500">{fmt0(summary.totalValue)}</td>
                       <td className="px-2 py-2 text-right">
                         <Money value={summary.realGain} signed tone={summary.realGain >= 0 ? 'income' : 'expense'} />
                       </td>
                       <td className="num px-2 py-2 text-right text-xs text-slate-500">{fmtPct(summary.realPct)}</td>
-                      <td colSpan={2} />
+                      <td />
                     </tr>
                   )}
                 </tfoot>
               </table>
             </div>
+            {updatePrices.isPending && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
+                <Loader2 size={12} className="animate-spin" /> กำลังบันทึก…
+              </p>
+            )}
           </Section>
         </div>
       )}
@@ -154,13 +360,10 @@ export default function Portfolio() {
         categories={investCats}
         onClose={() => setEditing(null)}
         onSave={(fields, id) =>
-          upsert.mutate(
-            { id, ...fields },
-            {
-              onSuccess: () => { toast.success(id ? 'แก้ไขแล้ว' : 'เพิ่มสินทรัพย์แล้ว'); setEditing(null) },
-              onError: (e) => toast.error(e.message),
-            },
-          )
+          upsert.mutate({ id, ...fields }, {
+            onSuccess: () => { toast.success(id ? 'แก้ไขแล้ว' : 'เพิ่มสินทรัพย์แล้ว'); setEditing(null) },
+            onError: (e) => toast.error(e.message),
+          })
         }
         onDelete={(id) =>
           del.mutate({ id }, {
@@ -176,37 +379,159 @@ export default function Portfolio() {
         fallback={summary.totalCost}
         onClose={() => setRealCostModal(false)}
         onSave={(v) =>
-          setSetting.mutate(
-            { key: 'real_cost', value: v },
-            {
-              onSuccess: () => { toast.success('บันทึกต้นทุนแท้จริงแล้ว'); setRealCostModal(false) },
-              onError: (e) => toast.error(e.message),
-            },
-          )
+          setSetting.mutate({ key: 'real_cost', value: v }, {
+            onSuccess: () => { toast.success('บันทึกต้นทุนแท้จริงแล้ว'); setRealCostModal(false) },
+            onError: (e) => toast.error(e.message),
+          })
+        }
+      />
+
+      <WeightModal
+        open={weightModal}
+        categories={investCats}
+        groups={groups}
+        totalValue={summary.totalValue}
+        onClose={() => setWeightModal(false)}
+        onSave={(weights) =>
+          saveWeights.mutate({ weights }, {
+            onSuccess: () => { toast.success('บันทึกน้ำหนักเป้าหมายแล้ว'); setWeightModal(false) },
+            onError: (e) => toast.error(e.message),
+          })
         }
       />
     </>
   )
 }
 
+// ---------------------------------------------------------------------------
+
+/** ช่องแก้ราคาในตาราง — ลูกศรขึ้นลงเลื่อนแถว กด Enter บันทึกแล้วลงแถวถัดไป */
+function PriceCell({ value, onSave, rowIndex, decimals }) {
+  const [text, setText] = useState('')
+  const [editing, setEditing] = useState(false)
+
+  const commit = () => {
+    setEditing(false)
+    const num = Number(String(text).replace(/[, ฿]/g, '')) || 0
+    if (num !== (Number(value) || 0)) onSave(num)
+  }
+
+  const move = (d) => {
+    const next = document.querySelector(`[data-price="${rowIndex + d}"]`)
+    if (next) { next.focus(); next.select?.() }
+  }
+
+  return (
+    <input
+      data-price={rowIndex}
+      inputMode="decimal"
+      value={editing ? text : decimals ? fmt2(value) : fmt0(value)}
+      onFocus={(e) => { setEditing(true); setText(value ? String(value) : ''); requestAnimationFrame(() => e.target.select()) }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); move(1) }
+        else if (e.key === 'Escape') { setEditing(false); setText(''); e.target.blur() }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); e.target.blur(); move(-1) }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); e.target.blur(); move(1) }
+      }}
+      className="num w-full bg-transparent px-2 py-1.5 text-right transition hover:bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:ring-inset focus:outline-none dark:hover:bg-slate-800/60 dark:focus:bg-slate-950"
+    />
+  )
+}
+
+/** กราฟประวัติมูลค่าพอร์ต — ต้องมีอย่างน้อย 2 จุดถึงจะลากเป็นเส้นได้ */
+function HistorySection({ snapshots, colors }) {
+  if (snapshots.length < 2) {
+    return (
+      <Section title="ประวัติมูลค่าพอร์ต" subtitle="เก็บอัตโนมัติทุกครั้งที่อัปเดตราคา (วันละ 1 จุด)">
+        <div className="flex items-start gap-2.5 rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+          <History size={17} className="mt-px shrink-0" />
+          <p>
+            {snapshots.length === 0
+              ? 'ยังไม่มีประวัติ — ลองแก้ราคาสักตัวในตารางด้านล่าง ระบบจะเริ่มเก็บให้อัตโนมัติ'
+              : `เก็บไว้แล้ว 1 จุด (${fmtDate(snapshots[0].captured_on)}) — อัปเดตราคาอีกวันหนึ่งแล้วกราฟจะเริ่มขึ้น`}
+          </p>
+        </div>
+      </Section>
+    )
+  }
+
+  const chartData = snapshots.map((s) => ({
+    label: fmtDate(s.captured_on),
+    cost: Number(s.total_cost),
+    value: Number(s.total_value),
+  }))
+  const first = chartData[0]
+  const last = chartData[chartData.length - 1]
+  const change = last.value - first.value
+
+  return (
+    <Section
+      title="ประวัติมูลค่าพอร์ต"
+      subtitle={`${snapshots.length} จุด · ${first.label} → ${last.label}`}
+      right={
+        <span className={`num text-sm font-semibold ${change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+          {fmtSigned(change)}
+        </span>
+      }
+    >
+      <div className="h-72">
+        <TrendLines
+          data={chartData}
+          series={[
+            { key: 'value', name: 'มูลค่าตลาด', color: colors.section.saving, showDots: true },
+            { key: 'cost', name: 'ต้นทุน', color: colors.chrome.axis, dashed: true },
+          ]}
+        />
+      </div>
+    </Section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
 function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
-  const [form, setForm] = useState({ name: '', cost: 0, market_value: 0, category_id: '', year: '' })
+  const [form, setForm] = useState({ name: '', cost: 0, market_value: 0, category_id: '', year: '', units: '', last_price: '' })
+  const [mode, setMode] = useState('total') // total = กรอกมูลค่ารวม · units = หน่วย × ราคา
   const last = useRef(null)
 
   if (state && state !== last.current) {
     last.current = state
+    const byUnits = Number(state.units) > 0 && Number(state.last_price) > 0
+    setMode(byUnits ? 'units' : 'total')
     setForm({
       name: state.name ?? '',
       cost: Number(state.cost) || 0,
       market_value: Number(state.market_value) || 0,
       category_id: state.category_id ?? '',
       year: state.year ?? '',
+      units: state.units ?? '',
+      last_price: state.last_price ?? '',
     })
   }
   if (!state) return null
 
-  const gain = form.market_value - form.cost
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const computed = mode === 'units' ? (Number(form.units) || 0) * (Number(form.last_price) || 0) : form.market_value
+  const gain = computed - form.cost
+
+  const submit = () => {
+    if (!form.name.trim()) return
+    onSave(
+      {
+        name: form.name.trim(),
+        cost: form.cost,
+        market_value: computed,
+        units: mode === 'units' && Number(form.units) > 0 ? Number(form.units) : null,
+        last_price: mode === 'units' && Number(form.last_price) > 0 ? Number(form.last_price) : null,
+        category_id: form.category_id || null,
+        year: form.year ? Number(form.year) : null,
+        updated_at: new Date().toISOString(),
+      },
+      state.id,
+    )
+  }
 
   return (
     <Modal
@@ -221,25 +546,7 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
             </ConfirmButton>
           )}
           <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
-          <button
-            onClick={() =>
-              form.name.trim() &&
-              onSave(
-                {
-                  name: form.name.trim(),
-                  cost: form.cost,
-                  market_value: form.market_value,
-                  category_id: form.category_id || null,
-                  year: form.year ? Number(form.year) : null,
-                  updated_at: new Date().toISOString(),
-                },
-                state.id,
-              )
-            }
-            className="btn-primary"
-          >
-            บันทึก
-          </button>
+          <button onClick={submit} className="btn-primary">บันทึก</button>
         </>
       }
     >
@@ -248,24 +555,81 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
           <input autoFocus className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="เช่น KBANK, SCBGOLD, Bitcoin" />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="ต้นทุนรวม">
-            <MoneyInput value={form.cost} onChange={(v) => set('cost', v)} />
-          </Field>
-          <Field label="มูลค่าปัจจุบัน">
+        <Field label="ต้นทุนรวมที่จ่ายไป">
+          <MoneyInput value={form.cost} onChange={(v) => set('cost', v)} />
+        </Field>
+
+        <Field label="วิธีคิดมูลค่าปัจจุบัน">
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { v: 'total', label: 'กรอกมูลค่ารวม', hint: 'ง่าย แต่ต้องคูณเอง' },
+              { v: 'units', label: 'หน่วย × ราคา', hint: 'อัปเดตแค่ราคา' },
+            ].map((o) => (
+              <button
+                key={o.v}
+                onClick={() => setMode(o.v)}
+                className={`cursor-pointer rounded-lg border-2 px-3 py-2 text-left transition ${
+                  mode === o.v
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60'
+                    : 'border-slate-200 hover:border-slate-300 dark:border-slate-700'
+                }`}
+              >
+                <span className="block text-sm font-medium">{o.label}</span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400">{o.hint}</span>
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {mode === 'units' ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="จำนวนหน่วย / หุ้น">
+                <input
+                  type="number"
+                  step="any"
+                  className="input num text-right"
+                  value={form.units}
+                  onChange={(e) => set('units', e.target.value)}
+                  placeholder="เช่น 1000"
+                />
+              </Field>
+              <Field label="ราคาต่อหน่วยล่าสุด">
+                <input
+                  type="number"
+                  step="any"
+                  className="input num text-right"
+                  value={form.last_price}
+                  onChange={(e) => set('last_price', e.target.value)}
+                  placeholder="เช่น 12.50"
+                />
+              </Field>
+            </div>
+            <p className="flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+              <Info size={16} className="mt-px shrink-0" />
+              <span>
+                มูลค่าปัจจุบัน = <span className="num">{fmt2(Number(form.units) || 0)}</span> ×{' '}
+                <span className="num">{fmt2(Number(form.last_price) || 0)}</span> ={' '}
+                <strong className="num">{fmt0(computed)}</strong> บาท
+                <br />
+                ครั้งต่อไปแก้แค่ราคาในตารางหน้าหลักได้เลย ไม่ต้องเปิดหน้านี้
+              </span>
+            </p>
+          </>
+        ) : (
+          <Field label="มูลค่าปัจจุบันรวม">
             <MoneyInput value={form.market_value} onChange={(v) => set('market_value', v)} />
           </Field>
-        </div>
+        )}
 
-        {(form.cost > 0 || form.market_value > 0) && (
+        {(form.cost > 0 || computed > 0) && (
           <div className={`rounded-lg p-3 text-sm ${gain >= 0 ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'}`}>
-            {gain >= 0 ? 'กำไร' : 'ขาดทุน'}{' '}
-            <strong className="num">{fmt0(Math.abs(gain))}</strong> บาท
+            {gain >= 0 ? 'กำไร' : 'ขาดทุน'} <strong className="num">{fmt0(Math.abs(gain))}</strong> บาท
             {form.cost > 0 && <span className="num ml-1">({fmtPct(gain / form.cost)})</span>}
           </div>
         )}
 
-        <Field label="ผูกกับกลุ่มการลงทุน" hint="เลือกได้เพื่อจัดกลุ่มให้ตรงกับรายการในหน้าเงินสะสม">
+        <Field label="ผูกกับกลุ่มการลงทุน" hint="ใช้จัดกลุ่มในกราฟสัดส่วนและการปรับสมดุล">
           <select className="input" value={form.category_id} onChange={(e) => set('category_id', e.target.value)}>
             <option value="">— ไม่ผูก —</option>
             {categories.map((c) => (
@@ -275,13 +639,7 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
         </Field>
 
         <Field label="ผูกกับปี (ไม่บังคับ)" hint={`เว้นว่าง = แสดงทุกปี · ใส่ ${year} = แสดงเฉพาะปีนี้`}>
-          <input
-            type="number"
-            className="input num"
-            value={form.year}
-            onChange={(e) => set('year', e.target.value)}
-            placeholder="ทุกปี"
-          />
+          <input type="number" className="input num w-32" value={form.year} onChange={(e) => set('year', e.target.value)} placeholder="ทุกปี" />
         </Field>
       </div>
     </Modal>
@@ -291,14 +649,8 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
 function RealCostModal({ open, current, fallback, onClose, onSave }) {
   const [value, setValue] = useState(0)
   const wasOpen = useRef(false)
-  if (open && !wasOpen.current) {
-    wasOpen.current = true
-    setValue(current)
-  }
-  if (!open) {
-    wasOpen.current = false
-    return null
-  }
+  if (open && !wasOpen.current) { wasOpen.current = true; setValue(current) }
+  if (!open) { wasOpen.current = false; return null }
 
   return (
     <Modal
@@ -321,6 +673,82 @@ function RealCostModal({ open, current, fallback, onClose, onSave }) {
         <Field label="ต้นทุนแท้จริงรวม (บาท)">
           <MoneyInput value={value} onChange={setValue} autoFocus />
         </Field>
+      </div>
+    </Modal>
+  )
+}
+
+function WeightModal({ open, categories, groups, totalValue, onClose, onSave }) {
+  const [weights, setWeights] = useState({})
+  const wasOpen = useRef(false)
+
+  if (open && !wasOpen.current) {
+    wasOpen.current = true
+    setWeights(Object.fromEntries(categories.map((c) => [c.id, c.target_weight ?? ''])))
+  }
+  if (!open) { wasOpen.current = false; return null }
+
+  const total = Object.values(weights).reduce((s, w) => s + (Number(w) || 0), 0)
+  const byCat = Object.fromEntries(groups.map((g) => [g.categoryId, g]))
+
+  /** เติมน้ำหนักตามสัดส่วนที่ถืออยู่จริง — ใช้เป็นจุดตั้งต้นแล้วค่อยปรับ */
+  const fillFromCurrent = () =>
+    setWeights(
+      Object.fromEntries(
+        categories.map((c) => [c.id, totalValue ? Math.round(((byCat[c.id]?.value ?? 0) / totalValue) * 1000) / 10 : '']),
+      ),
+    )
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="น้ำหนักเป้าหมายของพอร์ต"
+      footer={
+        <>
+          <button onClick={fillFromCurrent} className="btn-ghost mr-auto text-sm">ใช้สัดส่วนปัจจุบัน</button>
+          <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
+          <button onClick={() => onSave(weights)} className="btn-primary">บันทึก</button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+          กำหนดว่าอยากให้เงินลงทุนกระจายอยู่ในแต่ละกลุ่มกี่เปอร์เซ็นต์ —
+          เว้นว่างไว้ถ้ายังไม่อยากตั้งเป้ากลุ่มนั้น
+        </p>
+
+        <div className="space-y-2">
+          {categories.map((c) => {
+            const cur = totalValue ? (byCat[c.id]?.value ?? 0) / totalValue : 0
+            return (
+              <div key={c.id} className="flex items-center gap-3">
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {c.name}
+                  <span className="num ml-2 text-xs text-slate-400">ตอนนี้ {fmtPct(cur, 0)}</span>
+                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    className="input num w-20 text-right"
+                    value={weights[c.id] ?? ''}
+                    onChange={(e) => setWeights((w) => ({ ...w, [c.id]: e.target.value }))}
+                    placeholder="—"
+                  />
+                  <span className="text-sm text-slate-400">%</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className={`rounded-lg px-3 py-2 text-sm ${Math.abs(total - 100) < 0.5 ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'}`}>
+          รวมทั้งหมด <strong className="num">{fmt2(total)}%</strong>
+          {Math.abs(total - 100) < 0.5 ? ' — พอดี 100%' : ' — ปกติควรรวมได้ 100%'}
+        </div>
       </div>
     </Modal>
   )

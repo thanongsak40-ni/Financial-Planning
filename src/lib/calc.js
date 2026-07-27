@@ -212,14 +212,33 @@ export function balanceSheet(assets, portfolioRows, accumTotal) {
   }
 }
 
+/**
+ * มูลค่าปัจจุบันของสินทรัพย์ 1 ตัว
+ * ถ้ากรอกจำนวนหน่วยกับราคาต่อหน่วยไว้ → คิดจาก units × last_price
+ * ถ้าไม่ได้กรอก → ใช้ market_value ที่กรอกมือแบบเดิม
+ */
+export function marketValueOf(p) {
+  const units = n(p.units)
+  const price = n(p.last_price)
+  return units > 0 && price > 0 ? units * price : n(p.market_value)
+}
+
+export const hasUnits = (p) => n(p.units) > 0 && n(p.last_price) > 0
+
 export function portfolioSummary(rows, realCostSetting) {
-  const items = rows.map((p) => ({
-    ...p,
-    cost: n(p.cost),
-    market_value: n(p.market_value),
-    gain: n(p.market_value) - n(p.cost),
-    pct: n(p.cost) ? (n(p.market_value) - n(p.cost)) / n(p.cost) : 0,
-  }))
+  const items = rows.map((p) => {
+    const value = marketValueOf(p)
+    return {
+      ...p,
+      cost: n(p.cost),
+      units: p.units === null || p.units === undefined ? null : n(p.units),
+      last_price: p.last_price === null || p.last_price === undefined ? null : n(p.last_price),
+      market_value: value,
+      byUnits: hasUnits(p),
+      gain: value - n(p.cost),
+      pct: n(p.cost) ? (value - n(p.cost)) / n(p.cost) : 0,
+    }
+  })
   const totalCost = items.reduce((s, r) => s + r.cost, 0)
   const totalValue = items.reduce((s, r) => s + r.market_value, 0)
   const hasReal = realCostSetting !== undefined && realCostSetting !== null && realCostSetting !== ''
@@ -235,6 +254,72 @@ export function portfolioSummary(rows, realCostSetting) {
     realGain: totalValue - realCost,
     realPct: realCost ? (totalValue - realCost) / realCost : 0,
   }
+}
+
+/**
+ * รวมพอร์ตตามกลุ่ม (ผูกกับหมวดลงทุนในหน้าเงินสะสม)
+ * ตัวที่ไม่ได้ผูกกลุ่มจะไปรวมอยู่ใน "(ไม่ได้ผูกกลุ่ม)"
+ */
+export const UNGROUPED = '(ไม่ได้ผูกกลุ่ม)'
+
+export function portfolioGroups(items, categories) {
+  const nameOf = Object.fromEntries(categories.map((c) => [c.id, c.name]))
+  const map = new Map()
+  for (const p of items) {
+    const key = nameOf[p.category_id] || UNGROUPED
+    const g = map.get(key) ?? { name: key, categoryId: p.category_id ?? null, count: 0, cost: 0, value: 0 }
+    g.count++
+    g.cost += p.cost
+    g.value += p.market_value
+    map.set(key, g)
+  }
+  const totalValue = items.reduce((s, p) => s + p.market_value, 0)
+  return [...map.values()]
+    .map((g) => ({
+      ...g,
+      gain: g.value - g.cost,
+      pct: g.cost ? (g.value - g.cost) / g.cost : 0,
+      weight: totalValue ? g.value / totalValue : 0,
+    }))
+    .sort((a, b) => b.value - a.value)
+}
+
+/**
+ * เทียบน้ำหนักจริงกับน้ำหนักเป้าหมาย แล้วบอกว่าต้องซื้อ/ขายเท่าไรถึงกลับเข้าเป้า
+ * รับเฉพาะกลุ่มที่ตั้งเป้าไว้ (target_weight ไม่ว่าง) — กลุ่มที่ไม่ได้ตั้งจะไม่นำมาคิด
+ *
+ * @returns {{ rows, totalTarget, totalValue, balanced }}
+ */
+export function rebalance(groups, categories, totalValue) {
+  const targets = categories.filter((c) => c.is_investment && c.active && c.target_weight != null)
+  if (!targets.length) return { rows: [], totalTarget: 0, totalValue, balanced: true }
+
+  const byCat = Object.fromEntries(groups.map((g) => [g.categoryId, g]))
+  const totalTarget = targets.reduce((s, c) => s + n(c.target_weight), 0)
+
+  const rows = targets
+    .map((c) => {
+      const g = byCat[c.id]
+      const value = g?.value ?? 0
+      const target = n(c.target_weight) / 100
+      const targetValue = totalValue * target
+      const diff = targetValue - value
+      return {
+        id: c.id,
+        name: c.name,
+        value,
+        weight: totalValue ? value / totalValue : 0,
+        target,
+        targetValue,
+        diff, // > 0 = ต้องซื้อเพิ่ม, < 0 = เกินเป้า
+        drift: totalValue ? value / totalValue - target : 0,
+      }
+    })
+    .sort((a, b) => b.value - a.value)
+
+  // ถือว่าสมดุลถ้าทุกกลุ่มเบี่ยงไม่เกิน 5 จุดเปอร์เซ็นต์
+  const balanced = rows.every((r) => Math.abs(r.drift) <= 0.05)
+  return { rows, totalTarget, totalValue, balanced }
 }
 
 // ---------------------------------------------------------------------------
