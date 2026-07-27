@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
 import { Table2, ChartColumn } from 'lucide-react'
 import { useChartColors, axisProps, gridProps } from '../lib/chartTheme'
@@ -62,7 +62,7 @@ export function ChartCard({ title, subtitle, height = 280, table, children, righ
   )
 }
 
-function TooltipBox({ active, payload, label, unit = '฿', total }) {
+function TooltipBox({ active, payload, label, unit = '฿', total, showTotal }) {
   if (!active || !payload?.length) return null
   const rows = payload.filter((p) => p.value !== null && p.value !== undefined)
   if (!rows.length) return null
@@ -84,6 +84,15 @@ function TooltipBox({ active, payload, label, unit = '฿', total }) {
           </div>
         ))}
       </div>
+      {showTotal && rows.length > 1 && (
+        <div className="mt-1.5 flex items-center gap-2 border-t border-slate-200 pt-1.5 dark:border-slate-700">
+          <span className="font-medium text-slate-600 dark:text-slate-300">รวม</span>
+          <span className="num ml-auto font-bold text-slate-900 dark:text-slate-100">
+            {unit}
+            {fmt0(rows.reduce((s, p) => s + (Number(p.value) || 0), 0))}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -193,6 +202,140 @@ export function DonutChart({ data, colors, total, height = 280, centerLabel, cen
         {showLegend && <Legend wrapperStyle={legendStyle} iconType="circle" iconSize={8} />}
       </PieChart>
     </ResponsiveContainer>
+  )
+}
+
+// ---------------------------------------------------------------------------
+//  พื้นที่ซ้อน — ยอดรวมและสัดส่วนของแต่ละส่วนไปพร้อมกัน
+// ---------------------------------------------------------------------------
+
+export function StackedArea({ data, series, unit = '฿', showTotal = true }) {
+  const { chrome } = useChartColors()
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid {...gridProps(chrome)} />
+        <XAxis dataKey="label" {...axisProps(chrome)} minTickGap={24} />
+        <YAxis {...axisProps(chrome)} tickFormatter={fmtCompact} width={48} />
+        <Tooltip content={<TooltipBox unit={unit} showTotal={showTotal} />} cursor={{ stroke: chrome.axis, strokeWidth: 1 }} />
+        <Legend wrapperStyle={legendStyle} iconType="circle" iconSize={8} />
+        {series.map((s) => (
+          <Area
+            key={s.key}
+            type="monotone"
+            dataKey={s.key}
+            name={s.name}
+            stackId="1"
+            stroke={chrome.surface}
+            strokeWidth={2}
+            fill={s.color}
+            fillOpacity={0.9}
+            connectNulls
+          />
+        ))}
+      </AreaChart>
+    </ResponsiveContainer>
+  )
+}
+
+// ---------------------------------------------------------------------------
+//  เส้นแบบดัชนี — ทุกเส้นเริ่มที่ 100 เทียบอัตราการเติบโตบนแกนเดียว
+// ---------------------------------------------------------------------------
+
+export function TrendLinesIndex({ data, series }) {
+  const { chrome } = useChartColors()
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid {...gridProps(chrome)} />
+        <XAxis dataKey="label" {...axisProps(chrome)} minTickGap={24} />
+        <YAxis {...axisProps(chrome)} tickFormatter={(v) => Math.round(v)} width={40} />
+        <Tooltip content={<IndexTooltip />} cursor={{ stroke: chrome.axis, strokeWidth: 1 }} />
+        <Legend wrapperStyle={legendStyle} iconType="line" iconSize={14} />
+        {/* เส้น 100 = จุดเริ่มต้น เหนือเส้นคือโต ใต้เส้นคือลด */}
+        <ReferenceLine y={100} stroke={chrome.axis} strokeWidth={1.5} strokeDasharray="5 4" />
+        {series.map((s) => (
+          <Line
+            key={s.key}
+            type="monotone"
+            dataKey={s.key}
+            name={s.name}
+            stroke={s.color}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: chrome.surface }}
+            connectNulls
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function IndexTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  const rows = payload.filter((p) => p.value !== null && p.value !== undefined)
+  if (!rows.length) return null
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+      <p className="mb-1.5 font-semibold text-slate-700 dark:text-slate-200">{label}</p>
+      <div className="space-y-1">
+        {rows.map((p) => {
+          const change = p.value - 100
+          return (
+            <div key={p.dataKey} className="flex items-center gap-2">
+              <span className="size-2 shrink-0 rounded-full" style={{ background: p.color }} />
+              <span className="text-slate-500 dark:text-slate-400">{p.name}</span>
+              <span
+                className={`num ml-auto font-semibold ${
+                  change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                }`}
+              >
+                {change >= 0 ? '+' : '−'}{Math.abs(change).toFixed(1)}%
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+//  Sparkline — เส้นเล็กในตาราง มีสเกลของตัวเอง จึงเห็นการเปลี่ยนแปลงชัด
+//  แม้ยอดจะเล็กกว่าบัญชีอื่นหลายสิบเท่า
+// ---------------------------------------------------------------------------
+
+export function Sparkline({ values = [], color, width = 92, height = 26 }) {
+  const pts = values.filter((v) => v !== null && v !== undefined)
+  if (pts.length < 2) {
+    return <span className="text-xs text-slate-300 dark:text-slate-700">—</span>
+  }
+  const min = Math.min(...pts)
+  const max = Math.max(...pts)
+  const span = max - min || 1
+  const step = width / (values.length - 1)
+
+  let d = ''
+  let started = false
+  values.forEach((v, i) => {
+    if (v === null || v === undefined) return
+    const x = i * step
+    const y = height - ((v - min) / span) * (height - 4) - 2
+    d += `${started ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`
+    started = true
+  })
+
+  const lastIdx = values.map((v, i) => (v === null || v === undefined ? -1 : i)).filter((i) => i >= 0).pop()
+  const lastVal = values[lastIdx]
+  const lastX = lastIdx * step
+  const lastY = height - ((lastVal - min) / span) * (height - 4) - 2
+
+  return (
+    <svg width={width} height={height} className="overflow-visible" aria-hidden>
+      <path d={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={lastX} cy={lastY} r="2.5" fill={color} />
+    </svg>
   )
 }
 

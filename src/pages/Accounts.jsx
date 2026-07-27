@@ -1,11 +1,14 @@
 import { useMemo, useState, useRef } from 'react'
 import { Plus, Pencil, Trash2, Wallet, Landmark, Banknote, Smartphone, CreditCard, ShieldCheck } from 'lucide-react'
-import { useFinanceData, useUpsertRow, useDeleteRow } from '../hooks/useData'
+import { useFinanceData, useSaveAccount, useDeleteRow, useAutoAccountSnapshot } from '../hooks/useData'
 import { useToast } from '../components/Toast'
 import {
   PageHeader, Spinner, ErrorBox, Section, Empty, StatCard,
-  Modal, Field, MoneyInput, ConfirmButton, ProgressBar,
+  Modal, Field, MoneyInput, ConfirmButton, ProgressBar, Tabs, Money,
 } from '../components/ui'
+import { StackedArea, Sparkline, TrendLinesIndex } from '../components/charts'
+import { useChartColors, colorMap } from '../lib/chartTheme'
+import { accountSeries, accountDelta, indexedRows } from '../lib/accounts'
 import { fmt0, fmtPct, fmtDate, fmtAgo } from '../lib/format'
 
 /**
@@ -25,10 +28,12 @@ const KINDS = {
 
 export default function Accounts() {
   const { data, isLoading, error, refetch } = useFinanceData()
-  const upsert = useUpsertRow('accounts')
+  const upsert = useSaveAccount()
   const del = useDeleteRow('accounts')
+  const colors = useChartColors()
   const toast = useToast()
   const [editing, setEditing] = useState(null)
+  const [chartMode, setChartMode] = useState('amount')
 
   const view = useMemo(() => {
     const rows = [...(data?.accounts ?? [])].sort(
@@ -45,13 +50,18 @@ export default function Accounts() {
       if (!r.updated_at) return false
       return (Date.now() - new Date(r.updated_at)) / 86400000 > 30
     })
-    return { rows, total, byKind: Object.values(byKind), stale }
-  }, [data])
+    const series = accountSeries(rows, data?.accountSnapshots ?? [])
+    const palette = colorMap(rows.map((r) => r.id), colors.categorical)
+    return { rows, total, byKind: Object.values(byKind), stale, series, palette }
+  }, [data, colors.categorical])
+
+  // เก็บประวัติของทุกบัญชีครั้งแรกของวัน เพื่อให้เส้นกราฟต่อเนื่อง
+  useAutoAccountSnapshot(data?.accounts, data?.accountSnapshots)
 
   if (isLoading) return <Spinner />
   if (error) return <ErrorBox error={error} onRetry={refetch} />
 
-  const { rows, total, byKind, stale } = view
+  const { rows, total, byKind, stale, series, palette } = view
 
   return (
     <>
@@ -131,6 +141,55 @@ export default function Accounts() {
             </Section>
           )}
 
+          {/* ---------- กราฟประวัติ ---------- */}
+          {series.hasHistory ? (
+            <Section
+              title="ยอดเงินย้อนหลัง"
+              subtitle={
+                chartMode === 'amount'
+                  ? `${series.dates.length} จุด · พื้นที่ซ้อน — ความสูงรวมคือเงินทั้งหมด แต่ละสีคือหนึ่งบัญชี`
+                  : `${series.dates.length} จุด · ทุกบัญชีเริ่มที่ 100 — เทียบอัตราการเติบโตข้ามบัญชีที่ยอดต่างกันมาก`
+              }
+              right={
+                <Tabs
+                  value={chartMode}
+                  onChange={setChartMode}
+                  size="sm"
+                  options={[
+                    { value: 'amount', label: 'จำนวนเงิน' },
+                    { value: 'index', label: 'ดัชนี 100' },
+                  ]}
+                />
+              }
+            >
+              <div className="h-80">
+                {chartMode === 'amount' ? (
+                  <StackedArea
+                    data={series.rows}
+                    series={rows.map((a) => ({ key: a.id, name: a.name, color: palette[a.id] }))}
+                  />
+                ) : (
+                  <TrendLinesIndex
+                    data={indexedRows(series.rows, rows)}
+                    series={rows.map((a) => ({ key: a.id, name: a.name, color: palette[a.id] }))}
+                  />
+                )}
+              </div>
+            </Section>
+          ) : (
+            <Section title="ยอดเงินย้อนหลัง">
+              <div className="flex items-start gap-2.5 rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                <TrendingUp size={17} className="mt-px shrink-0" />
+                <p>
+                  ระบบเริ่มเก็บยอดของทุกบัญชีให้อัตโนมัติวันละครั้งแล้ว —
+                  {series.dates.length === 0
+                    ? ' กลับมาดูอีกครั้งพรุ่งนี้'
+                    : ` ตอนนี้มี 1 จุด (${fmtDate(series.dates[0])}) พรุ่งนี้จะได้จุดที่ 2 แล้วกราฟจะเริ่มขึ้น`}
+                </p>
+              </div>
+            </Section>
+          )}
+
           <Section title="รายการบัญชี" subtitle="เรียงตามลำดับที่ตั้งไว้">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -140,6 +199,8 @@ export default function Accounts() {
                     <th className="th text-left">ประเภท</th>
                     <th className="th text-left">ธนาคาร / ผู้ให้บริการ</th>
                     <th className="th text-right">ยอดคงเหลือ</th>
+                    <th className="th text-center">แนวโน้ม</th>
+                    <th className="th text-right">เปลี่ยนแปลง</th>
                     <th className="th text-right">สัดส่วน</th>
                     <th className="th text-left">อัปเดตล่าสุด</th>
                     <th className="th w-10" />
@@ -167,6 +228,25 @@ export default function Accounts() {
                         <td className={`num px-2 py-2 text-right font-semibold ${Number(a.balance) < 0 ? 'text-rose-600 dark:text-rose-400' : ''}`}>
                           {fmt0(a.balance)}
                         </td>
+                        <td className="px-2 py-2 text-center">
+                          <span className="inline-block align-middle">
+                            <Sparkline values={series.byAccount[a.id] ?? []} color={palette[a.id]} />
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-right">
+                          {(() => {
+                            const d = accountDelta(series.byAccount[a.id] ?? [])
+                            if (!d.enough) return <span className="text-xs text-slate-300 dark:text-slate-700">—</span>
+                            return (
+                              <span className="whitespace-nowrap">
+                                <Money value={d.change} signed tone={d.change >= 0 ? 'income' : 'expense'} />
+                                <span className={`num ml-1.5 text-xs ${d.change >= 0 ? 'text-emerald-600/70 dark:text-emerald-400/70' : 'text-rose-600/70 dark:text-rose-400/70'}`}>
+                                  {fmtPct(d.pct, 0)}
+                                </span>
+                              </span>
+                            )
+                          })()}
+                        </td>
                         <td className="num px-2 py-2 text-right text-xs text-slate-400">
                           {fmtPct(total ? Number(a.balance) / total : 0, 0)}
                         </td>
@@ -186,6 +266,15 @@ export default function Accounts() {
                   <tr className="border-t-2 border-slate-200 font-bold dark:border-slate-700">
                     <td colSpan={3} className="px-2 py-2.5">รวมทุกบัญชี</td>
                     <td className="num px-2 py-2.5 text-right">{fmt0(total)}</td>
+                    <td />
+                    <td className="px-2 py-2.5 text-right">
+                      {(() => {
+                        const first = series.rows[0]?.total
+                        const last = series.rows[series.rows.length - 1]?.total
+                        if (!series.hasHistory || first === undefined) return null
+                        return <Money value={last - first} signed tone={last - first >= 0 ? 'income' : 'expense'} />
+                      })()}
+                    </td>
                     <td colSpan={3} />
                   </tr>
                 </tfoot>

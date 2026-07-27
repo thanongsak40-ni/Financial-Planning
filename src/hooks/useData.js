@@ -18,6 +18,7 @@ const TABLES = [
   ['taxItems', 'tax_items', {}],
   ['recurring', 'recurring', {}],
   ['accounts', 'accounts', { order: ['sort_order', { ascending: true }], optional: true }],
+  ['accountSnapshots', 'account_snapshots', { order: ['captured_on', { ascending: true }], optional: true }],
   // optional = ถ้าตารางยังไม่มี (ยังไม่ได้รัน migration) ให้ถือว่าว่างเปล่า
   // แทนที่จะทำให้ทั้งแอปโหลดไม่ขึ้น
   ['snapshots', 'portfolio_snapshots', { order: ['captured_on', { ascending: true }], optional: true }],
@@ -322,6 +323,57 @@ export function useAutoNetWorthSnapshot(snapshots, totals) {
     done.current = true
     save.mutate(totals, { onError: () => { done.current = false } })
   }, [user?.id, snapshots, totals, save])
+}
+
+// ---------------------------------------------------------------------------
+//  ประวัติยอดบัญชี
+// ---------------------------------------------------------------------------
+
+/** เขียนยอดของบัญชีที่ระบุลงประวัติของวันนี้ (วันละ 1 แถวต่อบัญชี) */
+async function snapAccounts(userId, rows) {
+  if (!rows.length) return
+  const captured_on = todayKey()
+  const { error } = await supabase.from('account_snapshots').upsert(
+    rows.map((r) => ({ user_id: userId, account_id: r.id, captured_on, balance: Number(r.balance) || 0 })),
+    { onConflict: 'user_id,account_id,captured_on' },
+  )
+  // ยังไม่ได้รัน migration ก็ไม่ควรทำให้การบันทึกบัญชีล้มเหลว
+  if (error) console.warn('[finance-planner] บันทึกประวัติบัญชีไม่สำเร็จ:', error.message)
+}
+
+/** บันทึกบัญชี + เก็บประวัติของวันนี้ไปพร้อมกัน */
+export function useSaveAccount() {
+  return useFinanceMutation(async ({ id, ...fields }, userId) => {
+    const saved = id
+      ? unwrap(await supabase.from('accounts').update(fields).match({ id, user_id: userId }).select())
+      : unwrap(await supabase.from('accounts').insert({ ...fields, user_id: userId }).select())
+    await snapAccounts(userId, saved ?? [])
+    return saved
+  })
+}
+
+/**
+ * เก็บประวัติของ "ทุกบัญชี" ครั้งแรกของวัน
+ * ทำแม้ยอดไม่เปลี่ยน เพื่อให้เส้นกราฟมีจุดต่อเนื่อง ไม่ขาดช่วง
+ */
+export function useAutoAccountSnapshot(accounts, snapshots) {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  const done = useRef(false)
+
+  useEffect(() => {
+    if (done.current || !user?.id || !accounts?.length) return
+    const today = todayKey()
+    const already = new Set(
+      (snapshots ?? []).filter((s) => String(s.captured_on).slice(0, 10) === today).map((s) => s.account_id),
+    )
+    const missing = accounts.filter((a) => !already.has(a.id))
+    if (!missing.length) return
+    done.current = true
+    snapAccounts(user.id, missing)
+      .then(() => qc.invalidateQueries({ queryKey: ['finance', user.id] }))
+      .catch(() => { done.current = false })
+  }, [user?.id, accounts, snapshots, qc])
 }
 
 /** ตั้งน้ำหนักเป้าหมายของหลายกลุ่มพร้อมกัน */
