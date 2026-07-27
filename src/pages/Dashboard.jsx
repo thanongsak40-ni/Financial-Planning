@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Landmark, PiggyBank, Wallet, Percent, AlertTriangle,
+  Landmark, PiggyBank, Wallet, Percent,
   ArrowRight, CheckCircle2, TrendingUp,
 } from 'lucide-react'
 import { useFinanceData } from '../hooks/useData'
@@ -43,38 +43,6 @@ export default function Dashboard() {
   const alloc = capSeries(d.allocation.items, 6)
   const expenses = capSeries(d.expenseByCat, 6)
 
-  // ---- คำเตือน ----
-  const alerts = []
-  if (d.health.emergencyMonths > 0 && d.health.emergencyMonths < 6) {
-    alerts.push({
-      kind: 'warning',
-      text: `เงินสำรองฉุกเฉินครอบคลุมรายจ่ายได้ ${d.health.emergencyMonths.toFixed(1)} เดือน — เป้าหมายที่ปลอดภัยคือ 6 เดือน`,
-      to: '/savings',
-    })
-  }
-  const negMonths = d.actual.balance.slice(0, d.nowMonth).filter((v) => v < 0).length
-  if (negMonths > 0) {
-    alerts.push({
-      kind: 'warning',
-      text: `มี ${negMonths} เดือนที่รายรับไม่พอกับรายจ่าย+เงินออม — ต้องดึงเงินเก็บมาโปะ`,
-      to: '/actual',
-    })
-  }
-  const overBudget = (data.categories ?? [])
-    .filter((c) => c.section === 'expense' && c.monthly_budget > 0)
-    .map((c) => {
-      const spent = (d.actual.byCat[c.id] ?? []).slice(0, d.nowMonth).reduce((a, b) => a + b, 0)
-      return { name: c.name, spent, budget: Number(c.monthly_budget) * d.nowMonth }
-    })
-    .filter((c) => c.spent > c.budget)
-  if (overBudget.length) {
-    alerts.push({
-      kind: 'critical',
-      text: `ใช้เกินงบที่ตั้งไว้ ${overBudget.length} รายการ: ${overBudget.slice(0, 3).map((c) => c.name).join(', ')}`,
-      to: '/actual',
-    })
-  }
-
   return (
     <>
       <PageHeader
@@ -103,27 +71,6 @@ export default function Dashboard() {
         </Section>
       ) : (
         <div className="space-y-5">
-          {/* ---------- คำเตือน ---------- */}
-          {alerts.length > 0 && (
-            <div className="space-y-2">
-              {alerts.map((a, i) => (
-                <Link
-                  key={i}
-                  to={a.to}
-                  className={`flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm transition hover:shadow-sm ${
-                    a.kind === 'critical'
-                      ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300'
-                      : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
-                  }`}
-                >
-                  <AlertTriangle size={17} className="mt-px shrink-0" />
-                  <span className="flex-1">{a.text}</span>
-                  <ArrowRight size={15} className="mt-px shrink-0 opacity-50" />
-                </Link>
-              ))}
-            </div>
-          )}
-
           {/* ---------- KPI ---------- */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
