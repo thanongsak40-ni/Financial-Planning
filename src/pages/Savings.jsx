@@ -4,7 +4,7 @@ import { useFinanceData, useSaveCarryOver } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, Section, Empty, StatCard, Modal, Field, MoneyInput, Money, Tabs, ProgressBar } from '../components/ui'
-import { ChartCard, DonutChart, DataTable } from '../components/charts'
+import { ChartCard, DonutChart } from '../components/charts'
 import { useChartColors, capSeries } from '../lib/chartTheme'
 import { savingsAccum, allocation } from '../lib/calc'
 import { fmt0, fmtPct } from '../lib/format'
@@ -87,16 +87,6 @@ export default function Savings() {
                 title="สัดส่วนแต่ละรายการ"
                 subtitle={`มุมมอง${viewLabel} · รวม ${fmt0(alloc.total)} บาท${capped.folded > 0 ? ` · รวม ${capped.folded} รายการเล็กเป็น "อื่น ๆ"` : ''}`}
                 height={300}
-                table={
-                  <DataTable
-                    columns={[
-                      { key: 'name', label: 'รายการ' },
-                      { key: 'value', label: 'ยอด', align: 'right', render: (r) => fmt0(r.value) },
-                      { key: 'pct', label: '%', align: 'right', render: (r) => fmtPct(r.pct) },
-                    ]}
-                    rows={alloc.items.map((i) => ({ ...i, key: i.name }))}
-                  />
-                }
               >
                 <DonutChart
                   data={capped.items}
