@@ -103,16 +103,12 @@ export function yearGrid(year, type, categories, entries) {
   const balance = zeros().map(
     (_, m) => sectionMonthly.income[m] - sectionMonthly.saving[m] - sectionMonthly.expense[m],
   )
-  // เหลือก่อนออม = รายรับ − จ่าย  (กำลังในการออมที่แท้จริง)
-  const surplus = zeros().map((_, m) => sectionMonthly.income[m] - sectionMonthly.expense[m])
-
   return {
     byCat,
     byCatStatus,
     sectionMonthly,
     sectionTotal,
     balance,
-    surplus,
     grandTotal: balance.reduce((a, b) => a + b, 0),
   }
 }
@@ -362,7 +358,7 @@ export function dashboard(year, data, today = new Date()) {
     const income = actual.sectionMonthly.income[idx]
     const saving = actual.sectionMonthly.saving[idx]
     const expense = actual.sectionMonthly.expense[idx]
-    return { month: idx + 1, income, saving, expense, balance: income - saving - expense, surplus: income - expense }
+    return { month: idx + 1, income, saving, expense, balance: income - saving - expense }
   }
 
   const accum = savingsAccum(year, categories, entries, carryOver, today)

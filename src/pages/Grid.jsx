@@ -1,9 +1,8 @@
 import { Fragment, useMemo, useState, useRef, useCallback } from 'react'
 import {
-  Plus, Pencil, Archive, ArchiveRestore, StickyNote, Wand2, Copy,
-  ChevronDown, ChevronRight, EyeOff, Eye, Trash2,
+  Plus, Pencil, StickyNote, Wand2, ChevronDown, ChevronRight, Trash2,
 } from 'lucide-react'
-import { useFinanceData, useSaveEntry, useFillRow, useCopyYear, useSaveCategory, useArchiveCategory, useDeleteCategory, useSaveNote, useMonthNotes } from '../hooks/useData'
+import { useFinanceData, useSaveEntry, useFillRow, useSaveCategory, useDeleteCategory, useSaveNote, useMonthNotes } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, Modal, Field, MoneyInput, ConfirmButton } from '../components/ui'
@@ -103,19 +102,15 @@ export default function Grid() {
   const { data: notes } = useMonthNotes(year)
   const saveEntry = useSaveEntry()
   const fillRow = useFillRow()
-  const copyYear = useCopyYear()
   const saveCategory = useSaveCategory()
-  const archiveCategory = useArchiveCategory()
   const deleteCategory = useDeleteCategory()
   const saveNote = useSaveNote()
   const toast = useToast()
 
-  const [showArchived, setShowArchived] = useState(false)
   const [collapsed, setCollapsed] = useState({})
   const [catModal, setCatModal] = useState(null)
   const [fillModal, setFillModal] = useState(null)
   const [noteModal, setNoteModal] = useState(null)
-  const [copyModal, setCopyModal] = useState(false)
 
   const type = 'actual'
   const thisYear = new Date().getFullYear()
@@ -123,8 +118,8 @@ export default function Grid() {
 
   const categories = data?.categories ?? []
   const visible = useMemo(
-    () => categories.filter((c) => c.active || showArchived).sort((a, b) => a.sort_order - b.sort_order),
-    [categories, showArchived],
+    () => categories.filter((c) => c.active).sort((a, b) => a.sort_order - b.sort_order),
+    [categories],
   )
 
   const grid = useMemo(
@@ -166,13 +161,6 @@ export default function Grid() {
         title="แผนการเงิน"
         subtitle={`ตัวเลขรายรับ–รายจ่าย–เงินออม รายเดือน ปี ${year} — คลิกจุดซ้ายช่องเพื่อทำเครื่องหมายสถานะ`}
       >
-        <button onClick={() => setShowArchived((v) => !v)} className="btn-outline" title="แสดง/ซ่อนรายการที่เก็บเข้าคลัง">
-          {showArchived ? <Eye size={16} /> : <EyeOff size={16} />}
-          <span className="hidden sm:inline">{showArchived ? 'ซ่อนรายการเก่า' : 'แสดงรายการเก่า'}</span>
-        </button>
-        <button onClick={() => setCopyModal(true)} className="btn-outline">
-          <Copy size={16} /> <span className="hidden sm:inline">คัดลอกข้อมูล</span>
-        </button>
         <button onClick={() => setCatModal({ section: 'income' })} className="btn-primary">
           <Plus size={16} /> เพิ่มรายการ
         </button>
@@ -293,20 +281,6 @@ export default function Grid() {
                                 {fmt(total)}
                               </span>
                             </td>
-                            <td className="px-1">
-                              <button
-                                onClick={() =>
-                                  archiveCategory.mutate(
-                                    { id: cat.id, active: !cat.active },
-                                    { onSuccess: () => toast.success(cat.active ? 'เก็บรายการเข้าคลังแล้ว' : 'นำกลับมาใช้แล้ว') },
-                                  )
-                                }
-                                title={cat.active ? 'เก็บเข้าคลัง (ตัวเลขเดิมยังอยู่)' : 'นำกลับมาใช้'}
-                                className="btn-ghost !p-1 opacity-0 transition group-hover:opacity-100"
-                              >
-                                {cat.active ? <Archive size={13} /> : <ArchiveRestore size={13} />}
-                              </button>
-                            </td>
                           </tr>
                         )
                       })}
@@ -357,24 +331,6 @@ export default function Grid() {
                 <td className="bg-slate-100 dark:bg-slate-800" />
               </tr>
 
-              {/* เหลือก่อนออม — ตัวเลขที่บอกกำลังออมจริง */}
-              <tr className="border-b border-slate-200 bg-slate-50 text-xs dark:border-slate-800 dark:bg-slate-900">
-                <td className="sticky left-0 z-10 bg-slate-50 px-2 py-1.5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                  เหลือก่อนออม
-                  <span className="ml-1.5 text-[10px]">รับ − จ่าย</span>
-                </td>
-                {grid.surplus.map((v, i) => (
-                  <td key={i} className="px-1.5 py-1.5 text-right">
-                    <span className={`num ${v < 0 ? 'text-rose-500' : 'text-slate-500 dark:text-slate-400'}`}>{fmt(v)}</span>
-                  </td>
-                ))}
-                <td className={`${totalCol} px-2 py-1.5 text-right !bg-slate-50 dark:!bg-slate-900`}>
-                  <span className="num text-slate-500 dark:text-slate-400">
-                    {fmt(grid.surplus.reduce((a, b) => a + b, 0))}
-                  </span>
-                </td>
-                <td className="bg-slate-50 dark:bg-slate-900" />
-              </tr>
 
               {/* หมายเหตุรายเดือน (เฉพาะหน้าแผนการเงิน) */}
               {(
@@ -407,10 +363,6 @@ export default function Grid() {
         </div>
       </div>
 
-      <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-        เคล็ดลับ: ใช้ปุ่มลูกศร ↑ ↓ ← → เลื่อนระหว่างช่องได้เหมือน Excel · กด Enter เพื่อบันทึกและลงแถวถัดไป ·
-        ปุ่ม <Wand2 size={11} className="inline" /> ข้างชื่อรายการ ใช้กรอกค่าเดียวกันทีเดียวหลายเดือน
-      </p>
 
       {/* ---------- Modals ---------- */}
       <CategoryModal
@@ -466,17 +418,6 @@ export default function Grid() {
         }
       />
 
-      <CopyModal
-        open={copyModal}
-        year={year}
-        onClose={() => setCopyModal(false)}
-        onCopy={(vars) =>
-          copyYear.mutate(vars, {
-            onSuccess: () => { toast.success('คัดลอกข้อมูลเรียบร้อย'); setCopyModal(false) },
-            onError: (e) => toast.error(e.message),
-          })
-        }
-      />
     </>
   )
 }
@@ -710,60 +651,6 @@ function NoteModal({ state, onClose, onSave }) {
       <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
         ไว้จดเหตุการณ์ที่ตัวเลขอย่างเดียวบอกไม่ได้ — ลบข้อความทั้งหมดแล้วกดบันทึกเพื่อลบหมายเหตุ
       </p>
-    </Modal>
-  )
-}
-
-function CopyModal({ open, year, onClose, onCopy }) {
-  const [toYear, setToYear] = useState(year + 1)
-  if (!open) return null
-
-  const valid = toYear >= 1900 && toYear <= 2200 && toYear !== year
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="คัดลอกข้อมูลไปอีกปี"
-      footer={
-        <>
-          <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
-          <button
-            onClick={() => onCopy({ year, from: 'actual', to: 'actual', toYear })}
-            disabled={!valid}
-            className="btn-primary"
-          >
-            คัดลอก
-          </button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-          คัดลอกตัวเลขทั้ง 12 เดือนของปี <strong className="num">{year}</strong> ไปเป็นตัวตั้งต้นของอีกปีหนึ่ง
-          แล้วค่อยเข้าไปแก้เฉพาะช่องที่ต่าง — เร็วกว่ากรอกใหม่ทั้งปี
-        </p>
-
-        <Field label="คัดลอกไปยังปี">
-          <input
-            type="number"
-            autoFocus
-            className="input num w-32 text-right"
-            value={toYear}
-            onChange={(e) => setToYear(Number(e.target.value))}
-          />
-        </Field>
-
-        {valid ? (
-          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-            ⚠️ ข้อมูลเดิมของปี <strong className="num">{toYear}</strong> ที่มีอยู่จะถูกเขียนทับทั้งหมด
-          </p>
-        ) : (
-          <p className="text-sm text-rose-600 dark:text-rose-400">
-            {toYear === year ? 'ปีปลายทางต้องไม่ใช่ปีเดียวกับต้นทาง' : 'กรุณาใส่ปีระหว่าง 1900–2200'}
-          </p>
-        )}
-      </div>
     </Modal>
   )
 }

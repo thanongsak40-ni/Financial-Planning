@@ -125,29 +125,6 @@ export function useFillRow() {
   })
 }
 
-/** คัดลอกทั้งปีจาก actual → plan หรือกลับกัน */
-export function useCopyYear() {
-  return useFinanceMutation(async ({ year, from, to, toYear }, userId) => {
-    const target = toYear ?? year
-    const src = unwrap(
-      await supabase.from('entries').select('*').match({ user_id: userId, year, type: from }),
-    )
-    if (!src.length) return []
-    await supabase.from('entries').delete().match({ user_id: userId, year: target, type: to })
-    const rows = src.map((e) => ({
-      user_id: userId,
-      category_id: e.category_id,
-      year: target,
-      month: e.month,
-      type: to,
-      amount: e.amount,
-    }))
-    return unwrap(
-      await supabase.from('entries').upsert(rows, { onConflict: 'user_id,category_id,year,month,type' }).select(),
-    )
-  })
-}
-
 export function useSaveNote() {
   return useFinanceMutation(async ({ year, month, note }, userId) => {
     if (!note?.trim()) {
@@ -181,13 +158,6 @@ export function useSaveCategory() {
     if (id) return unwrap(await supabase.from('categories').update(fields).match({ id, user_id: userId }).select())
     return unwrap(await supabase.from('categories').insert({ ...fields, user_id: userId }).select())
   })
-}
-
-/** ลบแบบนุ่ม — เก็บประวัติตัวเลขไว้ ไม่ทำให้ปีเก่าเพี้ยน */
-export function useArchiveCategory() {
-  return useFinanceMutation(async ({ id, active }, userId) =>
-    unwrap(await supabase.from('categories').update({ active }).match({ id, user_id: userId }).select()),
-  )
 }
 
 /** ลบถาวร พร้อมตัวเลขทั้งหมดของรายการนั้น */
