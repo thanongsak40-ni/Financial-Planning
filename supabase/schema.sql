@@ -87,9 +87,9 @@ create table if not exists public.portfolio (
   cost         numeric(18,4) not null default 0,
   market_value numeric(18,4) not null default 0,
   -- ถ้ากรอกทั้งคู่ ระบบจะคิด market_value = units × last_price ให้เอง
-  -- เว้นว่าง = กรอกมูลค่ารวมเองแบบเดิม
-  units        numeric(18,6),
-  last_price   numeric(18,6),
+  -- เว้นว่าง = กรอกมูลค่ารวมเองแบบเดิม (numeric เปล่า = ทศนิยมไม่จำกัด รองรับคริปโต)
+  units        numeric,
+  last_price   numeric,
   year         int,
   updated_at   timestamptz not null default now()
 );

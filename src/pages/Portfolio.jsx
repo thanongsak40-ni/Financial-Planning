@@ -303,7 +303,7 @@ export default function Portfolio() {
                         {catName[p.category_id] || <span className="text-slate-300 dark:text-slate-700">—</span>}
                       </td>
                       <td className="num px-2 py-1.5 text-right text-slate-500 dark:text-slate-400">
-                        {p.byUnits ? fmtExact(p.units, 4) : <span className="text-slate-300 dark:text-slate-700">—</span>}
+                        {p.byUnits ? fmtExact(p.units, 12) : <span className="text-slate-300 dark:text-slate-700">—</span>}
                       </td>
                       <td className="num px-2 py-1.5 text-right text-slate-500 dark:text-slate-400">{fmtExact(p.cost, 2)}</td>
                       <td className="p-0">
@@ -441,7 +441,7 @@ function PriceCell({ value, onSave, rowIndex, decimals }) {
     <input
       data-price={rowIndex}
       inputMode="decimal"
-      value={editing ? text : fmtExact(value, decimals ? 4 : 2)}
+      value={editing ? text : fmtExact(value, decimals ? 12 : 2)}
       onFocus={(e) => { setEditing(true); setText(value ? String(value) : ''); requestAnimationFrame(() => e.target.select()) }}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
@@ -624,8 +624,8 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
             <p className="flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
               <Info size={16} className="mt-px shrink-0" />
               <span>
-                มูลค่าปัจจุบัน = <span className="num">{fmtExact(Number(form.units) || 0)}</span> ×{' '}
-                <span className="num">{fmtExact(Number(form.last_price) || 0)}</span> ={' '}
+                มูลค่าปัจจุบัน = <span className="num">{fmtExact(Number(form.units) || 0, 12)}</span> ×{' '}
+                <span className="num">{fmtExact(Number(form.last_price) || 0, 12)}</span> ={' '}
                 <strong className="num">{fmtExact(computed, 2)}</strong> บาท
                 <br />
                 ครั้งต่อไปแก้แค่ราคาในตารางหน้าหลักได้เลย ไม่ต้องเปิดหน้านี้
