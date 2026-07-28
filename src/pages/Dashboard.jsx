@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Landmark, PiggyBank, Wallet, Percent,
+  Landmark, PiggyBank, Wallet, Percent, Rocket,
   ArrowRight, CheckCircle2, XCircle, TrendingUp,
 } from 'lucide-react'
 import { useFinanceData } from '../hooks/useData'
@@ -10,7 +10,7 @@ import { useYear } from '../hooks/useYear'
 import { PageHeader, Spinner, ErrorBox, StatCard, Section, ProgressBar, Empty, Money } from '../components/ui'
 import { ChartCard, MonthlyBars, TrendLines, DonutChart, DataTable } from '../components/charts'
 import { useChartColors, capSeries } from '../lib/chartTheme'
-import { dashboard, liquidityBreakdown, MONTHS, MONTHS_FULL } from '../lib/calc'
+import { dashboard, liquidityBreakdown, milestone, MONTHS, MONTHS_FULL } from '../lib/calc'
 import { fmt0, fmtPct, fmtSigned, fmtAgo } from '../lib/format'
 
 export default function Dashboard() {
@@ -19,6 +19,10 @@ export default function Dashboard() {
   const colors = useChartColors()
 
   const d = useMemo(() => (data ? dashboard(year, data) : null), [data, year])
+  const ms = useMemo(
+    () => (data ? milestone(data.profile, data.categories, data.entries, data.carryOver) : null),
+    [data],
+  )
 
   if (isLoading) return <Spinner />
   if (error) return <ErrorBox error={error} onRetry={refetch} />
@@ -164,14 +168,32 @@ export default function Dashboard() {
               icon={PiggyBank}
               hint={`คาดสิ้นปี ${fmt0(d.accum.reduce((s, a) => s + a.projected, 0))}`}
             />
-            <StatCard
-              label={`คงเหลือเดือน${monthName}`}
-              value={d.curMonth?.balance ?? 0}
-              tone={d.curMonth?.balance >= 0 ? 'neutral' : 'expense'}
-              icon={Wallet}
-              delta={d.prevMonth ? (d.curMonth?.balance ?? 0) - d.prevMonth.balance : undefined}
-              deltaLabel="เทียบเดือนก่อน"
-            />
+            {/* ความคืบหน้าเป้าหมายหลัก — การ์ดเดียวในแถวที่ตอบว่า "ไปถึงเป้าไหม"
+                 (การ์ดคงเหลือเดิมเป็น รับ−ออม−จ่าย ซึ่งถ้าวางแผนดีจะใกล้ศูนย์เสมอ
+                  ดูน่าตกใจทั้งที่จริงคือสัญญาณว่าแผนแม่น) */}
+            {ms?.configured && !ms.expired ? (
+              <StatCard
+                label={`เส้นทางสู่เป้า ${fmt0(ms.target)}`}
+                value={fmtPct(ms.progress)}
+                unit=""
+                tone={ms.onTrack ? 'income' : 'expense'}
+                icon={Rocket}
+                hint={
+                  ms.onTrack
+                    ? `สะสม ${fmt0(ms.currentAccum)} · กำลังไปถูกทาง`
+                    : `สะสม ${fmt0(ms.currentAccum)} · ต้องออมเพิ่มเดือนละ ${fmt0(ms.gap / Math.max(1, ms.monthsLeft))}`
+                }
+              />
+            ) : (
+              <StatCard
+                label="เส้นทางสู่เป้าหมาย"
+                value="—"
+                unit=""
+                tone="neutral"
+                icon={Rocket}
+                hint="ยังไม่ได้ตั้งเป้าระยะยาว — ตั้งได้ที่หน้าตั้งค่า"
+              />
+            )}
             <StatCard
               label="อัตราการออม"
               value={fmtPct(d.savingsRate)}
