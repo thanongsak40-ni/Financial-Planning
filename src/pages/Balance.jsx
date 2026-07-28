@@ -6,6 +6,7 @@ import {
 } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 import { PageHeader, Spinner, ErrorBox, Section, Empty, StatCard, Modal, Field, MoneyInput, ConfirmButton, ProgressBar } from '../components/ui'
 import { DonutChart, TrendLines } from '../components/charts'
 import { useChartColors } from '../lib/chartTheme'
@@ -16,6 +17,7 @@ import {
 import { fmt0, fmtPct, fmtDuration, fmtDate, fmtSigned } from '../lib/format'
 
 export default function Balance() {
+  const isDesktop = useIsDesktop()
   const { year } = useYear()
   const { data, isLoading, error, refetch } = useFinanceData()
   const upsert = useUpsertRow('assets')
@@ -270,6 +272,40 @@ export default function Balance() {
         {/* ---------- แผนปลดหนี้ ---------- */}
         {hasDebtPlan && (
           <Section title="แผนปลดหนี้" subtitle="ถ้าจ่ายเท่าที่ระบุไว้ทุกเดือน หนี้แต่ละก้อนจะหมดเมื่อไร">
+            {/* จอเล็ก: 6 คอลัมน์กว้างเกินจอ — เรียงเป็นการ์ดรายก้อนหนี้ */}
+            {!isDesktop && (
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {bs.liabilities
+                  .filter((l) => l.interest_rate > 0 && l.min_payment > 0)
+                  .map((l) => {
+                    const p = payoffSchedule(l.value, l.interest_rate, l.min_payment)
+                    return (
+                      <li key={l.id} className="py-3">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="min-w-0 truncate font-medium">{l.name}</span>
+                          <span className="num shrink-0 font-semibold">{fmt0(l.value)}</span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="num">ดอกเบี้ย {l.interest_rate}%/ปี</span>
+                          <span className="num">จ่ายเดือนละ {fmt0(l.min_payment)}</span>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 text-sm">
+                          <span className={p.feasible ? 'font-medium' : 'font-medium text-rose-600 dark:text-rose-400'}>
+                            {p.feasible ? `หมดใน ${fmtDuration(p.months)}` : 'จ่ายไม่พอดอกเบี้ย'}
+                          </span>
+                          {p.feasible && (
+                            <span className="num text-xs text-rose-600 dark:text-rose-400">
+                              ดอกเบี้ยรวม {fmt0(p.totalInterest)}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+              </ul>
+            )}
+
+            {isDesktop && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -305,6 +341,7 @@ export default function Balance() {
                 </tbody>
               </table>
             </div>
+            )}
             <p className="mt-3 flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
               <Calculator size={14} className="mt-px shrink-0" />
               คิดแบบลดต้นลดดอก — จ่ายเพิ่มเดือนละนิดเดียวก็ช่วยลดดอกเบี้ยรวมได้มาก

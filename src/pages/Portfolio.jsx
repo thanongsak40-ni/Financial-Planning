@@ -219,6 +219,32 @@ export default function Portfolio() {
                     ตัวเลขที่ต้องซื้อ/ขายจะคลาดเคลื่อน
                   </p>
                 )}
+                {/* จอเล็ก: การ์ดรายกลุ่ม — ตาราง 5 คอลัมน์บีบจนอ่านไม่ออกบนมือถือ */}
+                {!isDesktop && (
+                  <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {rebal.rows.map((r) => {
+                      const off = Math.abs(r.drift) > 0.05
+                      return (
+                        <li key={r.id} className="py-3">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="min-w-0 truncate font-medium">{r.name}</span>
+                            <span className="num shrink-0">{fmt0(r.value)}</span>
+                          </div>
+                          <div className="mt-1 flex items-baseline justify-between gap-2 text-xs">
+                            <span className="num text-slate-500 dark:text-slate-400">
+                              ตอนนี้ {fmtPct(r.weight)} · เป้า {fmtPct(r.target)}
+                            </span>
+                            <span className={`num shrink-0 font-semibold ${off ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                              {r.drift >= 0 ? '+' : '−'}{fmtPct(Math.abs(r.drift))}
+                            </span>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+
+                {isDesktop && (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -248,6 +274,7 @@ export default function Portfolio() {
                     </tbody>
                   </table>
                 </div>
+                )}
                 <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                   + คือเกินเป้า · − คือต่ำกว่าเป้า — ในทางปฏิบัติ
                   การปรับสมดุลด้วยการ<strong>เทเงินใหม่เข้าฝั่งที่ติดลบ</strong>มักดีกว่าขายฝั่งที่เกิน

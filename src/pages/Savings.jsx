@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { PiggyBank, Pencil } from 'lucide-react'
 import { useFinanceData, useSaveCarryOver } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, Section, Empty, StatCard, Modal, Field, MoneyInput, Money, Tabs, ProgressBar } from '../components/ui'
 import { DonutChart } from '../components/charts'
@@ -17,6 +18,7 @@ const VIEWS = [
 ]
 
 export default function Savings() {
+  const isDesktop = useIsDesktop()
   const { year, thisYear } = useYear()
   const { data, isLoading, error, refetch } = useFinanceData()
   const saveCarryOver = useSaveCarryOver()
@@ -128,6 +130,56 @@ export default function Savings() {
           )}
 
           <Section title={`ยอดสะสมรายรายการ ปี ${year}`}>
+            {/* จอเล็ก: ตาราง 7 คอลัมน์กว้างเกินจอ ตัวเลขขวาสุดโดนตัดหาย
+                จึงเรียงเป็นการ์ดรายรายการแทน — เห็นครบไม่ต้องเลื่อนแนวนอน */}
+            {!isDesktop && (
+              <>
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {rows.map((r) => {
+                    const cur = r.current ?? r.projected
+                    return (
+                      <li key={r.id} className="flex items-start gap-3 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">
+                            {r.name}
+                            {r.is_investment && (
+                              <span className="ml-1.5 rounded bg-violet-100 px-1 py-px text-[10px] font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+                                ลงทุน
+                              </span>
+                            )}
+                          </p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400 dark:text-slate-500">
+                            <button
+                              onClick={() => setEditing(r)}
+                              className="num inline-flex items-center gap-1 rounded px-1.5 py-1 text-slate-500 underline decoration-slate-300 decoration-dashed underline-offset-4 active:scale-95 dark:text-slate-400 dark:decoration-slate-600"
+                            >
+                              ยกมา {fmt0(r.opening)}
+                              <Pencil size={10} className="opacity-60" />
+                            </button>
+                            {r.added > 0 && (
+                              <span className="num text-blue-600 dark:text-blue-400">+{fmt0(r.added)}</span>
+                            )}
+                            <span className="num">สิ้นปี {fmt0(r.projected)}</span>
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="num font-semibold">{fmt0(cur)}</p>
+                          <p className="num text-xs text-slate-400">
+                            {fmtPct(totals.current ? cur / totals.current : 0, 0)}
+                          </p>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <div className="flex items-baseline justify-between border-t-2 border-slate-200 pt-2.5 font-bold dark:border-slate-700">
+                  <span>รวมทั้งหมด</span>
+                  <span className="num">{fmt0(totals.current)}</span>
+                </div>
+              </>
+            )}
+
+            {isDesktop && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -200,6 +252,7 @@ export default function Savings() {
                 </tfoot>
               </table>
             </div>
+            )}
           </Section>
         </div>
       )}
