@@ -3,12 +3,13 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Rocket, NotebookPen, PiggyBank,
   TrendingUp, Landmark, CheckSquare, Receipt, Settings as SettingsIcon,
-  Wallet, Menu, X, Sun, Moon, LogOut,
+  Wallet, Sun, Moon, LogOut,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useYear } from '../hooks/useYear'
 import { useToast } from './Toast'
 import ErrorBoundary from './ErrorBoundary'
+import BottomNav from './BottomNav'
 
 const NAV = [
   { group: 'ภาพรวม', items: [
@@ -38,7 +39,6 @@ function useTheme() {
 }
 
 export default function Layout({ children }) {
-  const [open, setOpen] = useState(false)
   const [dark, toggleTheme] = useTheme()
   const { user, signOut } = useAuth()
   const { year, setYear, years } = useYear()
@@ -59,10 +59,7 @@ export default function Layout({ children }) {
     return () => document.removeEventListener('pointerdown', onDown)
   }, [menuOpen])
 
-  useEffect(() => {
-    setOpen(false)
-    setMenuOpen(false)
-  }, [location.pathname])
+  useEffect(() => setMenuOpen(false), [location.pathname])
 
   const name = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้'
   const initial = name.charAt(0).toUpperCase()
@@ -75,17 +72,10 @@ export default function Layout({ children }) {
   return (
     <div className="flex h-full">
       {/* ---------- Sidebar ---------- */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:w-60 lg:translate-x-0 dark:border-slate-800 dark:bg-slate-900 ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex dark:border-slate-800 dark:bg-slate-900">
         <div className="flex h-14 items-center gap-2.5 border-b border-slate-200 px-4 dark:border-slate-800">
           <Wallet size={22} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
           <span className="truncate font-bold text-slate-900 dark:text-slate-50">วางแผนการเงิน</span>
-          <button onClick={() => setOpen(false)} className="btn-ghost ml-auto !p-1.5 lg:hidden" aria-label="ปิดเมนู">
-            <X size={18} />
-          </button>
         </div>
 
         <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 py-4">
@@ -119,14 +109,16 @@ export default function Layout({ children }) {
 
       </aside>
 
-      {open && <div className="fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-sm lg:hidden" onClick={() => setOpen(false)} />}
-
       {/* ---------- Main ---------- */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="no-print sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-slate-200 bg-white/85 px-3 backdrop-blur-md sm:px-5 dark:border-slate-800 dark:bg-slate-900/85">
-          <button onClick={() => setOpen(true)} className="btn-ghost !p-2 lg:hidden" aria-label="เปิดเมนู">
-            <Menu size={20} />
-          </button>
+        <header
+          className="no-print sticky top-0 z-20 flex h-auto min-h-14 items-center gap-2 border-b border-slate-200 bg-white/85 px-3 backdrop-blur-md sm:px-5 dark:border-slate-800 dark:bg-slate-900/85"
+          style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        >
+          <span className="flex items-center gap-2 font-bold text-slate-900 lg:hidden dark:text-slate-50">
+            <Wallet size={20} className="text-indigo-600 dark:text-indigo-400" />
+            วางแผนการเงิน
+          </span>
 
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             <label className="flex items-center gap-1.5 text-sm">
@@ -200,12 +192,14 @@ export default function Layout({ children }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden px-3 py-5 sm:px-5 sm:py-6">
+        <main className="flex-1 overflow-x-hidden px-3 py-5 pb-24 sm:px-5 sm:py-6 lg:pb-6">
           {/* key=pathname → เปลี่ยนหน้าแล้ว boundary รีเซ็ตเอง ไม่ค้าง error เก่า */}
           <ErrorBoundary key={location.pathname}>
             <div className="mx-auto max-w-[100rem]">{children}</div>
           </ErrorBoundary>
         </main>
+
+        <BottomNav />
       </div>
     </div>
   )

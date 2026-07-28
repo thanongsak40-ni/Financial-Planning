@@ -264,6 +264,7 @@ export default function Portfolio() {
             subtitle="แก้ราคาในตารางได้เลย — กด Enter บันทึกแล้วลงแถวถัดไป · ลูกศร ↑ ↓ เลื่อนขึ้นลง"
             right={
               groups.length > 1 && (
+                <div className="max-w-full overflow-x-auto">
                 <Tabs
                   value={groupFilter}
                   onChange={setGroupFilter}
@@ -276,10 +277,58 @@ export default function Portfolio() {
                     })),
                   ]}
                 />
+                </div>
               )
             }
           >
-            <div className="overflow-x-auto">
+            {/* ---------- จอเล็ก: การ์ดรายตัว แตะแก้ราคาได้เลย ---------- */}
+            <div className="lg:hidden">
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {shownItems.map((p) => (
+                  <li key={p.id} className="py-3">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{p.name}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">
+                          {catName[p.category_id] || 'ไม่ผูกกลุ่ม'}
+                          {p.byUnits && <> · <span className="num">{fmtExact(p.units, 12)}</span> หน่วย</>}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="num font-semibold">{fmtExact(p.market_value, 2)}</p>
+                        <p className={`num text-xs ${p.gain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {fmtSigned(p.gain)} ({fmtPct(p.pct)})
+                        </p>
+                      </div>
+                      <button onClick={() => setEditing(p)} className="btn-ghost -mr-1 !p-1.5" aria-label="แก้ไข">
+                        <Pencil size={14} />
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="shrink-0 text-xs text-slate-400">{p.byUnits ? 'ราคา/หน่วย' : 'มูลค่ารวม'}</span>
+                      <MobilePriceInput
+                        value={p.byUnits ? p.last_price : p.market_value}
+                        decimals={p.byUnits}
+                        onSave={(v) => savePrice(p, v)}
+                      />
+                      <span className="num ml-auto shrink-0 text-xs text-slate-400">ทุน {fmtExact(p.cost, 2)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-baseline justify-between border-t-2 border-slate-200 pt-2.5 font-bold dark:border-slate-700">
+                <span>{groupFilter === 'all' ? 'รวม' : 'รวมกลุ่มที่เลือก'}</span>
+                <span>
+                  <span className="num">{fmt0(shownValue)}</span>
+                  <span className={`num ml-2 text-xs font-medium ${shownValue - shownCost >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {fmtSigned(shownValue - shownCost)}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {/* ---------- จอใหญ่: ตารางเต็ม ---------- */}
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800">
@@ -463,6 +512,30 @@ function PriceCell({ value, onSave, rowIndex, decimals }) {
         else if (e.key === 'ArrowDown') { e.preventDefault(); e.target.blur(); move(1) }
       }}
       className="num w-full bg-transparent px-2 py-1.5 text-right transition hover:bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:ring-inset focus:outline-none dark:hover:bg-slate-800/60 dark:focus:bg-slate-950"
+    />
+  )
+}
+
+/** ช่องแก้ราคาบนการ์ดจอเล็ก — ฟอนต์ 16px กัน iOS ซูมหน้าจอเองตอนแตะ */
+function MobilePriceInput({ value, decimals, onSave }) {
+  const [text, setText] = useState('')
+  const [active, setActive] = useState(false)
+
+  const commit = () => {
+    setActive(false)
+    const num = Number(String(text).replace(/[, ฿]/g, '')) || 0
+    if (num !== (Number(value) || 0)) onSave(num)
+  }
+
+  return (
+    <input
+      inputMode="decimal"
+      value={active ? text : fmtExact(value, decimals ? 12 : 2)}
+      onFocus={(e) => { setActive(true); setText(value ? String(value) : ''); requestAnimationFrame(() => e.target.select()) }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+      className="num w-32 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-right text-base transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none dark:border-slate-700 dark:bg-slate-950"
     />
   )
 }

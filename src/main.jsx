@@ -9,7 +9,9 @@ import { ToastProvider } from './components/Toast'
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false },
+    // โหมดเต็มจอบนมือถือไม่มีปุ่มรีเฟรชของเบราว์เซอร์ —
+    // ดึงข้อมูลใหม่เองเมื่อสลับกลับเข้าแอป (ถ้าข้อมูลเก่ากว่า staleTime)
+    queries: { retry: 1, refetchOnWindowFocus: true },
   },
 })
 

@@ -191,7 +191,56 @@ export default function Accounts() {
           )}
 
           <Section title="รายการบัญชี" subtitle="เรียงตามลำดับที่ตั้งไว้">
-            <div className="overflow-x-auto">
+            {/* ---------- จอเล็ก: การ์ดรายบัญชี ---------- */}
+            <div className="lg:hidden">
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {rows.map((a) => {
+                  const meta = KINDS[a.kind] ?? KINDS.other
+                  const Icon = meta.icon
+                  const d = accountDelta(series.byAccount[a.id] ?? [])
+                  const old = a.updated_at && (Date.now() - new Date(a.updated_at)) / 86400000 > 30
+                  return (
+                    <li key={a.id} className="py-3">
+                      <div className="flex items-start gap-2.5">
+                        <Icon size={18} className="mt-0.5 shrink-0 text-slate-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{a.name}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500">
+                            {[meta.label, a.institution].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className={`num font-semibold ${Number(a.balance) < 0 ? 'text-rose-600 dark:text-rose-400' : ''}`}>
+                            {fmt0(a.balance)}
+                          </p>
+                          {d.enough && (
+                            <p className={`num text-xs ${d.change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                              {d.change >= 0 ? '+' : '−'}{fmt0(Math.abs(d.change))} ({fmtPct(Math.abs(d.pct), 0)})
+                            </p>
+                          )}
+                        </div>
+                        <button onClick={() => setEditing(a)} className="btn-ghost -mr-1 !p-1.5" aria-label="แก้ไข">
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between pl-[30px]">
+                        <Sparkline values={series.byAccount[a.id] ?? []} color={palette[a.id]} />
+                        <span className={`text-xs ${old ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                          {a.updated_at ? fmtAgo(a.updated_at) : '—'}
+                        </span>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+              <div className="flex items-baseline justify-between border-t-2 border-slate-200 pt-2.5 font-bold dark:border-slate-700">
+                <span>รวมทุกบัญชี</span>
+                <span className="num">{fmt0(total)}</span>
+              </div>
+            </div>
+
+            {/* ---------- จอใหญ่: ตารางเต็ม ---------- */}
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800">

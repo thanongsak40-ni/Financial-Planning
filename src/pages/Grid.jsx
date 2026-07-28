@@ -193,7 +193,7 @@ export default function Grid() {
            จึงเปลี่ยนเป็นกรอกทีละเดือนแทน — จอ lg ขึ้นไปยังใช้ตารางเต็มเหมือนเดิม */}
       <div className="space-y-4 lg:hidden">
         {/* เลือกเดือน */}
-        <div className="card flex items-center justify-between gap-1 px-2 py-1.5">
+        <div className="card sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 flex items-center justify-between gap-1 px-2 py-1.5 shadow-sm">
           <button
             onClick={() => setMobileMonth((m) => Math.max(0, m - 1))}
             disabled={mobileMonth === 0}
