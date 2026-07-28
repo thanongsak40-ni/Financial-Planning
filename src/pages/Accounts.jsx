@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, Wallet, Landmark, Banknote, Smartphone, CreditCard, ShieldCheck } from 'lucide-react'
+import { Plus, Pencil, Trash2, Wallet, Landmark, Banknote, Smartphone, CreditCard, ShieldCheck, TrendingUp } from 'lucide-react'
 import { useFinanceData, useSaveAccount, useDeleteRow, useAutoAccountSnapshot } from '../hooks/useData'
 import { useToast } from '../components/Toast'
 import {

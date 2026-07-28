@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../hooks/useAuth'
 import { useYear } from '../hooks/useYear'
 import { useToast } from './Toast'
+import ErrorBoundary from './ErrorBoundary'
 
 const NAV = [
   { group: 'ภาพรวม', items: [
@@ -200,7 +201,10 @@ export default function Layout({ children }) {
         </header>
 
         <main className="flex-1 overflow-x-hidden px-3 py-5 sm:px-5 sm:py-6">
-          <div className="mx-auto max-w-[100rem]">{children}</div>
+          {/* key=pathname → เปลี่ยนหน้าแล้ว boundary รีเซ็ตเอง ไม่ค้าง error เก่า */}
+          <ErrorBoundary key={location.pathname}>
+            <div className="mx-auto max-w-[100rem]">{children}</div>
+          </ErrorBoundary>
         </main>
       </div>
     </div>
