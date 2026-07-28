@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
@@ -39,8 +39,25 @@ function TableToggle({ mode, onChange }) {
 }
 
 /** กรอบกราฟ — จัดการหัวเรื่อง, สลับกราฟ/ตาราง, ความสูงที่รวมแกน x แล้ว */
+/* กราฟ Recharts ประกอบตัวแพงมากบนมือถือ — เลื่อนไปวาดหลังเฟรมแรกของหน้า
+   หน้าจะโผล่ทันทีที่กดเมนู (เห็น skeleton แวบเดียว) แทนที่จะค้างหน้าเดิม
+   จนผู้ใช้นึกว่ากดไม่ติดแล้วกดซ้ำ */
+function useDeferredMount() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    let alive = true
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => alive && setReady(true)))
+    return () => {
+      alive = false
+      cancelAnimationFrame(id)
+    }
+  }, [])
+  return ready
+}
+
 export function ChartCard({ title, subtitle, height = 280, table, children, right }) {
   const [mode, setMode] = useState('chart')
+  const ready = useDeferredMount()
   return (
     <section className="card-pad">
       <header className="mb-4 flex flex-wrap items-start justify-between gap-2">
@@ -54,7 +71,7 @@ export function ChartCard({ title, subtitle, height = 280, table, children, righ
         </div>
       </header>
       {mode === 'chart' || !table ? (
-        <div style={{ height }}>{children}</div>
+        <div style={{ height }}>{ready ? children : <div className="skeleton h-full w-full" />}</div>
       ) : (
         <div className="max-h-[280px] overflow-auto">{table}</div>
       )}

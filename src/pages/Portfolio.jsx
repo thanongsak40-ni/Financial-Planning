@@ -5,6 +5,7 @@ import {
   useUpdatePrices, useSaveTargetWeights,
 } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 import { useToast } from '../components/Toast'
 import {
   PageHeader, Spinner, ErrorBox, Section, Empty, StatCard,
@@ -16,6 +17,7 @@ import { portfolioSummary, portfolioGroups, rebalance, UNGROUPED } from '../lib/
 import { fmt0, fmt2, fmtExact, fmtPct, fmtSigned, fmtDate, fmtAgo } from '../lib/format'
 
 export default function Portfolio() {
+  const isDesktop = useIsDesktop()
   const { year } = useYear()
   const { data, isLoading, error, refetch } = useFinanceData()
   const upsert = useUpsertRow('portfolio')
@@ -282,6 +284,7 @@ export default function Portfolio() {
             }
           >
             {/* ---------- จอเล็ก: การ์ดรายตัว แตะแก้ราคาได้เลย ---------- */}
+            {!isDesktop && (
             <div className="lg:hidden">
               <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {shownItems.map((p) => (
@@ -326,8 +329,10 @@ export default function Portfolio() {
                 </span>
               </div>
             </div>
+            )}
 
             {/* ---------- จอใหญ่: ตารางเต็ม ---------- */}
+            {isDesktop && (
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
@@ -411,6 +416,7 @@ export default function Portfolio() {
                 </tfoot>
               </table>
             </div>
+            )}
             {updatePrices.isPending && (
               <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
                 <Loader2 size={12} className="animate-spin" /> กำลังบันทึก…

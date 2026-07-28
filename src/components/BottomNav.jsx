@@ -32,7 +32,21 @@ export default function BottomNav() {
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
 
-  useEffect(() => setMoreOpen(false), [location.pathname])
+  // ไฟแท็บติดทันทีที่นิ้วแตะ ไม่รอหน้าใหม่วาดเสร็จ — หน้าที่กราฟเยอะใช้เวลา
+  // วาดเป็นครึ่งวินาทีบนมือถือ ถ้ารอให้ route เปลี่ยนก่อน ผู้ใช้จะนึกว่ากดไม่ติด
+  const [pending, setPending] = useState(null)
+
+  useEffect(() => {
+    setMoreOpen(false)
+    setPending(null)
+  }, [location.pathname])
+
+  // กันไฟค้างกรณีแตะแล้วลากนิ้วออกจนไม่เกิดการนำทาง
+  useEffect(() => {
+    if (pending === null) return
+    const t = setTimeout(() => setPending(null), 2000)
+    return () => clearTimeout(t)
+  }, [pending])
 
   const moreActive = MORE.some((m) => location.pathname.startsWith(m.to))
 
@@ -61,6 +75,7 @@ export default function BottomNav() {
                 <NavLink
                   key={to}
                   to={to}
+                  onClick={() => setMoreOpen(false)}
                   className={({ isActive }) =>
                     `flex flex-col items-center gap-1.5 rounded-xl px-2 py-3.5 text-center text-xs font-medium transition ${
                       isActive
@@ -85,14 +100,21 @@ export default function BottomNav() {
       >
         <div className="grid grid-cols-5">
           {MAIN.map(({ to, icon: Icon, label, end }) => (
-            <NavLink key={to} to={to} end={end} className={({ isActive }) => itemClass(isActive)}>
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              onPointerDown={() => setPending(to)}
+              onClick={() => setPending(to)}
+              className={({ isActive }) => itemClass(pending ? pending === to : isActive)}
+            >
               <Icon size={22} />
               {label}
             </NavLink>
           ))}
           <button
             onClick={() => setMoreOpen((o) => !o)}
-            className={itemClass(moreActive || moreOpen)}
+            className={itemClass(pending ? false : moreActive || moreOpen)}
             aria-expanded={moreOpen}
           >
             <LayoutGrid size={22} />

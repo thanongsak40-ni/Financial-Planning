@@ -4,6 +4,7 @@ import {
 } from 'lucide-react'
 import { useFinanceData, useSaveEntry, useFillRow, useSaveCategory, useDeleteCategory, useSaveNote, useMonthNotes } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, Modal, Field, MoneyInput, ConfirmButton, Money } from '../components/ui'
 import { MONTHS, MONTHS_FULL, SECTIONS, SECTION_LABEL, SECTION_SUM_LABEL, yearGrid, priorYearsByCat, LIQUIDITY } from '../lib/calc'
@@ -102,6 +103,7 @@ function Cell({ value, status, onSave, onCycleStatus, showStatus, isCurrentMonth
 }
 
 export default function Grid() {
+  const isDesktop = useIsDesktop()
   const { year } = useYear()
   const { data, isLoading, error, refetch } = useFinanceData()
   const { data: notes } = useMonthNotes(year)
@@ -191,6 +193,7 @@ export default function Grid() {
       {/* ---------- จอเล็ก: กรอกทีละเดือน ----------
            ตารางทั้งปีมีคอลัมน์ตรึงซ้าย-ขวารวม ~400px ซึ่งกว้างกว่าจอมือถือทั้งจอ
            จึงเปลี่ยนเป็นกรอกทีละเดือนแทน — จอ lg ขึ้นไปยังใช้ตารางเต็มเหมือนเดิม */}
+      {!isDesktop && (
       <div className="space-y-4 lg:hidden">
         {/* เลือกเดือน */}
         <div className="card sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 flex items-center justify-between gap-1 px-2 py-1.5 shadow-sm">
@@ -289,7 +292,9 @@ export default function Grid() {
           </p>
         </section>
       </div>
+      )}
 
+      {isDesktop && (
       <div className="card hidden overflow-hidden lg:block">
         <div className="max-h-[calc(100dvh-11rem)] overflow-auto overscroll-contain">
           <table className="w-full border-collapse text-sm">
@@ -501,6 +506,7 @@ export default function Grid() {
           </table>
         </div>
       </div>
+      )}
 
 
       {/* ---------- Modals ---------- */}

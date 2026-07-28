@@ -2,6 +2,7 @@ import { useMemo, useState, useRef } from 'react'
 import { Plus, Pencil, Trash2, Wallet, Landmark, Banknote, Smartphone, CreditCard, ShieldCheck, TrendingUp } from 'lucide-react'
 import { useFinanceData, useSaveAccount, useDeleteRow, useAutoAccountSnapshot } from '../hooks/useData'
 import { useToast } from '../components/Toast'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 import {
   PageHeader, Spinner, ErrorBox, Section, Empty, StatCard,
   Modal, Field, MoneyInput, ConfirmButton, ProgressBar, Tabs, Money,
@@ -27,6 +28,7 @@ const KINDS = {
 }
 
 export default function Accounts() {
+  const isDesktop = useIsDesktop()
   const { data, isLoading, error, refetch } = useFinanceData()
   const upsert = useSaveAccount()
   const del = useDeleteRow('accounts')
@@ -193,6 +195,7 @@ export default function Accounts() {
 
           <Section title="รายการบัญชี" subtitle="เรียงตามลำดับที่ตั้งไว้">
             {/* ---------- จอเล็ก: การ์ดรายบัญชี ---------- */}
+            {!isDesktop && (
             <div className="lg:hidden">
               <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {rows.map((a) => {
@@ -239,8 +242,10 @@ export default function Accounts() {
                 <span className="num">{fmt0(total)}</span>
               </div>
             </div>
+            )}
 
             {/* ---------- จอใหญ่: ตารางเต็ม ---------- */}
+            {isDesktop && (
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
@@ -330,6 +335,7 @@ export default function Accounts() {
                 </tfoot>
               </table>
             </div>
+            )}
           </Section>
         </div>
       )}
