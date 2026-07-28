@@ -196,7 +196,9 @@ export default function Grid() {
       {!isDesktop && (
       <div className="space-y-4 lg:hidden">
         {/* เลือกเดือน */}
-        <div className="card sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 flex items-center justify-between gap-1 px-2 py-1.5 shadow-sm">
+        {/* main คือตัวเลื่อน แถบเดือนจึงตรึงที่ top-0 ของ main ได้เลย
+            (ตัวแถบบนสุดอยู่นอก main อยู่แล้ว ไม่ต้องเผื่อความสูงให้) */}
+        <div className="card sticky top-0 z-30 flex items-center justify-between gap-1 px-2 py-1.5 shadow-sm">
           <button
             onClick={() => setMobileMonth((m) => Math.max(0, m - 1))}
             disabled={mobileMonth === 0}

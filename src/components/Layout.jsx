@@ -29,6 +29,55 @@ const NAV = [
   ]},
 ]
 
+/**
+ * โครงหน้าที่แสดงระหว่างรอหน้าจริงวาดเสร็จ
+ * หน้าตาเลียนแบบหน้าทั่วไปของแอป (หัวเรื่อง + การ์ดสรุป + เนื้อหา)
+ * เพื่อไม่ให้ความสูงกระโดดตอนของจริงมาแทน
+ */
+function PageSkeleton() {
+  return (
+    <div aria-hidden>
+      <div className="mb-5 flex items-end justify-between gap-3">
+        <div className="w-full">
+          <div className="skeleton h-6 w-40" />
+          <div className="skeleton mt-2 h-3.5 w-56" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="skeleton h-24" />
+        ))}
+      </div>
+      <div className="skeleton mt-4 h-72" />
+    </div>
+  )
+}
+
+/**
+ * ตอนกดเปลี่ยนหน้า React จะค้างหน้าเดิมไว้จนกว่าหน้าใหม่จะวาดเสร็จทั้งหน้า
+ * หน้าที่หนักใช้เวลาหลายร้อยมิลลิวินาทีบนมือถือ ผู้ใช้จึงเห็นแถบเมนู
+ * เปลี่ยนแล้วแต่เนื้อหายังเป็นหน้าเดิม เหมือนกดแล้วไม่ไปไหน
+ *
+ * ตัวนี้ให้พื้นที่เนื้อหาสลับเป็นโครงหน้าทันทีในเฟรมแรก (วาดถูกมาก)
+ * แล้วค่อยวาดหน้าจริงในเฟรมถัดไป — เปลี่ยนหน้าแล้วเห็นผลทันทีเสมอ
+ */
+function RouteBody({ pathname, children }) {
+  const [shown, setShown] = useState(pathname)
+
+  useEffect(() => {
+    let alive = true
+    const id = requestAnimationFrame(() => {
+      if (alive) setShown(pathname)
+    })
+    return () => {
+      alive = false
+      cancelAnimationFrame(id)
+    }
+  }, [pathname])
+
+  return shown === pathname ? children : <PageSkeleton />
+}
+
 function useTheme() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   useEffect(() => {
@@ -60,6 +109,14 @@ export default function Layout({ children }) {
   }, [menuOpen])
 
   useEffect(() => setMenuOpen(false), [location.pathname])
+
+  // main คือตัวที่เลื่อนจริง (overflow-x-hidden บังคับให้ overflow-y เป็น auto)
+  // ถ้าไม่รีเซ็ต เปลี่ยนหน้าแล้วจะไปโผล่กลางหน้าใหม่ที่ตำแหน่งเดิมของหน้าเก่า
+  // จนดูเหมือนหน้าไม่เปลี่ยน
+  const mainRef = useRef(null)
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 })
+  }, [location.pathname])
 
   const name = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้'
   const initial = name.charAt(0).toUpperCase()
@@ -192,11 +249,15 @@ export default function Layout({ children }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden px-3 py-5 pb-24 sm:px-5 sm:py-6 lg:pb-6">
-          {/* key=pathname → เปลี่ยนหน้าแล้ว boundary รีเซ็ตเอง ไม่ค้าง error เก่า */}
-          <ErrorBoundary key={location.pathname}>
-            <div className="mx-auto max-w-[100rem]">{children}</div>
-          </ErrorBoundary>
+        <main ref={mainRef} className="flex-1 overflow-x-hidden px-3 py-5 pb-24 sm:px-5 sm:py-6 lg:pb-6">
+          {/* RouteBody อยู่นอก boundary เพราะ key=pathname จะรีเซ็ตทุกอย่างข้างใน
+              รวมถึงสถานะของตัวมันเอง — ต้องอยู่ชั้นนอกถึงจะจำได้ว่าหน้าไหนวาดแล้ว */}
+          <div className="mx-auto max-w-[100rem]">
+            <RouteBody pathname={location.pathname}>
+              {/* key=pathname → เปลี่ยนหน้าแล้ว boundary รีเซ็ตเอง ไม่ค้าง error เก่า */}
+              <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
+            </RouteBody>
+          </div>
         </main>
 
         <BottomNav />
