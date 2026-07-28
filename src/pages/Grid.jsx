@@ -197,7 +197,7 @@ export default function Grid() {
           <button
             onClick={() => setMobileMonth((m) => Math.max(0, m - 1))}
             disabled={mobileMonth === 0}
-            className="btn-ghost !p-2 disabled:opacity-30"
+            className="btn-ghost !p-2.5 disabled:opacity-30"
             aria-label="เดือนก่อนหน้า"
           >
             <ChevronLeft size={18} />
@@ -214,7 +214,7 @@ export default function Grid() {
             </select>
             <button
               onClick={() => setNoteModal({ month: mobileMonth + 1, note: noteByMonth[mobileMonth + 1] || '' })}
-              className={`btn-ghost !p-2 ${noteByMonth[mobileMonth + 1] ? '!text-amber-500' : ''}`}
+              className={`btn-ghost !p-2.5 ${noteByMonth[mobileMonth + 1] ? '!text-amber-500' : ''}`}
               aria-label="หมายเหตุประจำเดือน"
             >
               <StickyNote size={17} />
@@ -223,7 +223,7 @@ export default function Grid() {
           <button
             onClick={() => setMobileMonth((m) => Math.min(11, m + 1))}
             disabled={mobileMonth === 11}
-            className="btn-ghost !p-2 disabled:opacity-30"
+            className="btn-ghost !p-2.5 disabled:opacity-30"
             aria-label="เดือนถัดไป"
           >
             <ChevronRight size={18} />
@@ -373,7 +373,7 @@ export default function Grid() {
                                   )}
                                   {!cat.active && <span className="ml-1.5 text-[10px] text-slate-400">(เก็บแล้ว)</span>}
                                 </span>
-                                <span className="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
+                                <span className="flex shrink-0 gap-0.5 hover-reveal transition">
                                   <button
                                     onClick={() => setFillModal({ cat })}
                                     title="กรอกค่าเดียวกันหลายเดือน"
@@ -578,10 +578,10 @@ function MobileRow({ cat, value, status, tone, onSave, onCycleStatus, onEdit }) 
     <div className="flex items-center gap-0.5 pr-1">
       <button
         onClick={onCycleStatus}
-        className="shrink-0 cursor-pointer p-2.5"
+        className="shrink-0 cursor-pointer p-3"
         title={`สถานะ: ${STATUS_LABEL[status] ?? 'รอ'} (แตะเพื่อเปลี่ยน)`}
       >
-        <span className={`block size-2 rounded-full transition ${STATUS_DOT[status] || 'bg-slate-200 dark:bg-slate-700'}`} />
+        <span className={`block size-2.5 rounded-full transition ${STATUS_DOT[status] || 'bg-slate-200 dark:bg-slate-700'}`} />
       </button>
       <button onClick={onEdit} className="min-w-0 flex-1 cursor-pointer truncate py-2.5 text-left text-sm">
         {cat.name}

@@ -37,7 +37,7 @@ export default function BottomNav() {
   const moreActive = MORE.some((m) => location.pathname.startsWith(m.to))
 
   const itemClass = (active) =>
-    `flex cursor-pointer flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition ${
+    `flex cursor-pointer flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition active:scale-90 ${
       active
         ? 'text-indigo-600 dark:text-indigo-400'
         : 'text-slate-400 active:text-slate-600 dark:text-slate-500 dark:active:text-slate-300'
@@ -48,7 +48,7 @@ export default function BottomNav() {
       {/* ---------- sheet "อื่นๆ" ---------- */}
       {moreOpen && (
         <div className="fixed inset-0 z-50 flex items-end lg:hidden">
-          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setMoreOpen(false)} aria-hidden />
+          <div className="absolute inset-0 bg-slate-900/50" onClick={() => setMoreOpen(false)} aria-hidden />
           <div className="animate-in relative w-full rounded-t-2xl border-t border-slate-200 bg-white pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
               <h3 className="font-semibold">เมนูทั้งหมด</h3>
@@ -80,7 +80,7 @@ export default function BottomNav() {
 
       {/* ---------- แถบล่าง ---------- */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden dark:border-slate-800 dark:bg-slate-900/95"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-slate-800 dark:bg-slate-900"
         aria-label="เมนูหลัก"
       >
         <div className="grid grid-cols-5">

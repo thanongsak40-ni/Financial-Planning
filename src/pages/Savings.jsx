@@ -85,6 +85,7 @@ export default function Savings() {
                จึงปิด legend ของกราฟ ไม่ให้มีสองชุดซ้อนกัน */}
           {alloc.total > 0 && (
             <Section
+              className="cv-auto"
               title="สัดส่วนแต่ละรายการ"
               subtitle={`มุมมอง${viewLabel} · รวม ${fmt0(alloc.total)} บาท${capped.folded > 0 ? ` · รวม ${capped.folded} รายการเล็กเป็น "อื่น ๆ"` : ''}`}
             >
@@ -166,7 +167,7 @@ export default function Savings() {
                           <button
                             onClick={() => setEditing(r)}
                             title="แก้ยอดยกมาต้นปี"
-                            className="btn-ghost !p-1 opacity-0 transition group-hover:opacity-100"
+                            className="btn-ghost !p-1 hover-reveal transition"
                           >
                             <Pencil size={13} />
                           </button>

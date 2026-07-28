@@ -208,7 +208,7 @@ export default function Dashboard() {
           {!d.isFutureYear && <HealthChecklist checks={healthChecks} />}
 
           {/* ---------- กราฟหลัก ---------- */}
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="cv-auto grid gap-4 xl:grid-cols-2">
             <ChartCard
               title="รายรับ / เงินออม / รายจ่าย รายเดือน"
               subtitle={`ปี ${year}`}
@@ -273,7 +273,7 @@ export default function Dashboard() {
           </div>
 
           {/* ---------- สัดส่วน ---------- */}
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="cv-auto grid gap-4 xl:grid-cols-2">
             <ChartCard
               title="สัดส่วนเงินออม/ลงทุน"
               subtitle={
@@ -346,7 +346,7 @@ export default function Dashboard() {
           </div>
 
           {/* ---------- เป้าหมาย + พอร์ต ---------- */}
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="cv-auto grid gap-4 lg:grid-cols-2">
             <Section
               title={`เป้าหมายปี ${year}`}
               right={<Link to="/goals" className="btn-ghost text-sm">จัดการ <ArrowRight size={14} /></Link>}

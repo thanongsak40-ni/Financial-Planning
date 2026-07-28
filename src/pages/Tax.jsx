@@ -213,7 +213,7 @@ export default function Tax() {
                 <li key={t.id} className="group flex items-center gap-2 py-2.5">
                   <span className="min-w-0 flex-1 truncate">{t.name}</span>
                   <span className="num shrink-0 font-semibold">{fmt0(t.amount)}</span>
-                  <button onClick={() => setEditing(t)} className="btn-ghost !p-1 opacity-0 transition group-hover:opacity-100">
+                  <button onClick={() => setEditing(t)} className="btn-ghost !p-1 hover-reveal transition">
                     <Pencil size={13} />
                   </button>
                 </li>

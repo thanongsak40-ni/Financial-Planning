@@ -144,6 +144,7 @@ export default function Accounts() {
           {/* ---------- กราฟประวัติ ---------- */}
           {series.hasHistory ? (
             <Section
+              className="cv-auto"
               title="ยอดเงินย้อนหลัง"
               subtitle={
                 chartMode === 'amount'
@@ -303,7 +304,7 @@ export default function Accounts() {
                           {a.updated_at ? `${fmtDate(a.updated_at)} · ${fmtAgo(a.updated_at)}` : '—'}
                         </td>
                         <td className="px-1 py-2">
-                          <button onClick={() => setEditing(a)} className="btn-ghost !p-1 opacity-0 transition group-hover:opacity-100">
+                          <button onClick={() => setEditing(a)} className="btn-ghost !p-1 hover-reveal transition">
                             <Pencil size={13} />
                           </button>
                         </td>

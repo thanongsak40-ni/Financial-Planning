@@ -227,7 +227,7 @@ export default function Balance() {
                     </div>
                     <span className="num shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">{fmt0(a.value)}</span>
                     {!a.virtual && (
-                      <button onClick={() => setEditing(a)} className="btn-ghost !p-1 opacity-0 transition group-hover:opacity-100">
+                      <button onClick={() => setEditing(a)} className="btn-ghost !p-1 hover-reveal transition">
                         <Pencil size={13} />
                       </button>
                     )}
@@ -257,7 +257,7 @@ export default function Balance() {
                       <ProgressBar value={l.value} max={bs.totalLiability} tone="expense" showPct={false} height="h-1" />
                     </div>
                     <span className="num shrink-0 font-semibold text-rose-700 dark:text-rose-400">{fmt0(l.value)}</span>
-                    <button onClick={() => setEditing(l)} className="btn-ghost !p-1 opacity-0 transition group-hover:opacity-100">
+                    <button onClick={() => setEditing(l)} className="btn-ghost !p-1 hover-reveal transition">
                       <Pencil size={13} />
                     </button>
                   </li>

@@ -53,6 +53,19 @@
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-indigo-500;
   }
+  /* จอสัมผัส: ตัดดีเลย์ 300ms ที่เบราว์เซอร์รอเผื่อแตะซ้ำซูม
+     และตัดกรอบไฮไลต์เทาตอนแตะ (เรามี active state ของตัวเอง) */
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 @layer components {
@@ -70,7 +83,7 @@
   .btn-outline,
   .btn-danger {
     @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition
-           disabled:cursor-not-allowed disabled:opacity-50;
+           active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
     @apply bg-indigo-600 text-white hover:bg-indigo-500 active:bg-indigo-700;
@@ -117,6 +130,25 @@
   }
   .skeleton {
     @apply animate-pulse rounded bg-slate-200 dark:bg-slate-800;
+  }
+  /* ปุ่มที่โผล่ตอนชี้เมาส์ — ซ่อนเฉพาะเครื่องที่มีเมาส์จริง
+     จอสัมผัส (มือถือ/iPad) ไม่มี hover ถ้าซ่อนด้วย opacity-0 เฉย ๆ
+     ปุ่มจะล่องหนถาวร กดโดนได้แค่ตอนเดาตำแหน่งถูก */
+  .hover-reveal {
+    opacity: 1;
+  }
+  @media (hover: hover) {
+    .hover-reveal {
+      opacity: 0;
+    }
+    .group:hover .hover-reveal {
+      opacity: 1;
+    }
+  }
+  /* เนื้อหาที่อยู่นอกจอยังไม่ต้องวาด (กราฟหนัก ๆ ใต้จอ) — เปิดหน้าไวขึ้นมากบนมือถือ */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 420px;
   }
 }
 

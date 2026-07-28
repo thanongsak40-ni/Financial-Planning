@@ -259,17 +259,17 @@ export default function Goals() {
                     {/* ปุ่มนับ +1 / −1 สำหรับเป้าแบบนับจำนวน */}
                     {p.mode === 'count' && !g.done && (
                       <div className="flex shrink-0 items-center gap-1">
-                        <button onClick={() => bumpCount(g, -1)} className="btn-ghost !p-1" title="ลด 1">
+                        <button onClick={() => bumpCount(g, -1)} className="btn-ghost !p-2.5" title="ลด 1">
                           <Minus size={14} />
                         </button>
                         <span className="num w-8 text-center text-sm font-semibold">{fmt0(g.current_count)}</span>
-                        <button onClick={() => bumpCount(g, 1)} className="btn-ghost !p-1" title="เพิ่ม 1">
+                        <button onClick={() => bumpCount(g, 1)} className="btn-ghost !p-2.5" title="เพิ่ม 1">
                           <Plus size={14} />
                         </button>
                       </div>
                     )}
 
-                    <button onClick={() => setEditing(g)} className="btn-ghost !p-1 opacity-0 transition group-hover:opacity-100">
+                    <button onClick={() => setEditing(g)} className="btn-ghost !p-1 hover-reveal transition">
                       <Pencil size={13} />
                     </button>
                   </li>

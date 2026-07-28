@@ -177,7 +177,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   const width = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }[size]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-900/50 p-0 sm:items-center sm:p-4 lg:backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
       <div
         ref={ref}
@@ -272,7 +272,7 @@ export function MoneyInput({ value, onChange, className = '', ...props }) {
 }
 
 export function Tabs({ value, onChange, options, size = 'md' }) {
-  const pad = size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'
+  const pad = size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-3.5 py-2 text-sm'
   return (
     <div className="inline-flex rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
       {options.map((o) => (

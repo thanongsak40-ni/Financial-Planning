@@ -112,7 +112,7 @@ export default function Layout({ children }) {
       {/* ---------- Main ---------- */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header
-          className="no-print sticky top-0 z-20 flex h-auto min-h-14 items-center gap-2 border-b border-slate-200 bg-white/85 px-3 backdrop-blur-md sm:px-5 dark:border-slate-800 dark:bg-slate-900/85"
+          className="no-print sticky top-0 z-20 flex h-auto min-h-14 items-center gap-2 border-b border-slate-200 bg-white px-3 sm:px-5 lg:bg-white/85 lg:backdrop-blur-md dark:border-slate-800 dark:bg-slate-900 dark:lg:bg-slate-900/85"
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
           <span className="flex items-center gap-2 font-bold text-slate-900 lg:hidden dark:text-slate-50">

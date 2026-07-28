@@ -133,7 +133,7 @@ export default function Portfolio() {
           </div>
 
           {/* ---------- สัดส่วนตามกลุ่ม + กำไร/ขาดทุนรายตัว ---------- */}
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="cv-auto grid gap-4 xl:grid-cols-2">
             <Section title="สัดส่วนพอร์ตตามกลุ่ม" subtitle={`${groups.length} กลุ่ม · รวม ${fmt0(summary.totalValue)} บาท`}>
               <div className="grid items-center gap-6 sm:grid-cols-[minmax(0,13rem)_1fr]">
                 <div className="h-52">
@@ -300,8 +300,8 @@ export default function Portfolio() {
                           {fmtSigned(p.gain)} ({fmtPct(p.pct)})
                         </p>
                       </div>
-                      <button onClick={() => setEditing(p)} className="btn-ghost -mr-1 !p-1.5" aria-label="แก้ไข">
-                        <Pencil size={14} />
+                      <button onClick={() => setEditing(p)} className="btn-ghost -mr-1 !p-2.5" aria-label="แก้ไข">
+                        <Pencil size={16} />
                       </button>
                     </div>
                     <div className="mt-2 flex items-center gap-2">
@@ -372,7 +372,7 @@ export default function Portfolio() {
                         {fmtPct(p.pct)}
                       </td>
                       <td className="px-1 py-1.5">
-                        <button onClick={() => setEditing(p)} className="btn-ghost !p-1 opacity-0 transition group-hover:opacity-100">
+                        <button onClick={() => setEditing(p)} className="btn-ghost !p-1 hover-reveal transition">
                           <Pencil size={13} />
                         </button>
                       </td>
@@ -568,6 +568,7 @@ function HistorySection({ snapshots, colors }) {
 
   return (
     <Section
+      className="cv-auto"
       title="ประวัติมูลค่าพอร์ต"
       subtitle={`${snapshots.length} จุด · ${first.label} → ${last.label}`}
       right={
