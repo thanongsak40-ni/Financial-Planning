@@ -10,22 +10,27 @@ import { MONTHS, MONTHS_FULL, SECTIONS, SECTION_LABEL, SECTION_SUM_LABEL, yearGr
 import { fmt, fmt0 } from '../lib/format'
 
 const SECTION_STYLE = {
+  // ห้ามใช้สีโปร่ง (เช่น /60) กับแถวที่มีช่องตรึงซ้าย-ขวา —
+  // ช่องตรึงลอยทับคอลัมน์เดือนที่เลื่อนอยู่ข้างใต้ ถ้าพื้นโปร่งตัวเลขจะทะลุซ้อนกัน
   income: {
     bar: 'bg-emerald-500',
-    head: 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200',
-    sum: 'bg-emerald-50/60 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300',
+    head: 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200',
+    sum: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    solid: '!bg-emerald-50 dark:!bg-emerald-950',
     text: 'text-emerald-700 dark:text-emerald-400',
   },
   saving: {
     bar: 'bg-blue-500',
-    head: 'bg-blue-50 text-blue-900 dark:bg-blue-950/50 dark:text-blue-200',
-    sum: 'bg-blue-50/60 text-blue-800 dark:bg-blue-950/30 dark:text-blue-300',
+    head: 'bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-200',
+    sum: 'bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+    solid: '!bg-blue-50 dark:!bg-blue-950',
     text: 'text-blue-700 dark:text-blue-400',
   },
   expense: {
     bar: 'bg-rose-500',
-    head: 'bg-rose-50 text-rose-900 dark:bg-rose-950/50 dark:text-rose-200',
-    sum: 'bg-rose-50/60 text-rose-800 dark:bg-rose-950/30 dark:text-rose-300',
+    head: 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-200',
+    sum: 'bg-rose-50 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+    solid: '!bg-rose-50 dark:!bg-rose-950',
     text: 'text-rose-700 dark:text-rose-400',
   },
 }
@@ -331,7 +336,7 @@ export default function Grid() {
                           <span className="ml-1 text-xs font-normal opacity-60">({rows.length})</span>
                         </button>
                       </td>
-                      <td colSpan={13} className="px-2 py-2 text-right">
+                      <td colSpan={12} className="px-2 py-2 text-right">
                         <button
                           onClick={() => setCatModal({ section })}
                           className="cursor-pointer text-xs font-medium opacity-70 hover:underline hover:opacity-100"
@@ -339,7 +344,8 @@ export default function Grid() {
                           + เพิ่มรายการใน{SECTION_LABEL[section]}
                         </button>
                       </td>
-                      <td className={style.head} />
+                      <td className={`${totalCol} ${style.solid}`} />
+                      <td className={`${accumCol} ${style.solid}`} />
                     </tr>
 
                     {/* รายการย่อย */}
@@ -356,7 +362,7 @@ export default function Grid() {
                               cat.active ? '' : 'opacity-50'
                             }`}
                           >
-                            <td className="sticky left-0 z-10 min-w-52 bg-white px-2 py-1 group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800/40">
+                            <td className="sticky left-0 z-10 min-w-52 bg-white px-2 py-1 group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800">
                               <div className="flex items-center gap-1.5">
                                 <span className="flex-1 truncate" title={cat.name}>
                                   {cat.name}
@@ -425,10 +431,10 @@ export default function Grid() {
                           <span className="num">{fmt(v)}</span>
                         </td>
                       ))}
-                      <td className={`${totalCol} px-2 py-1.5 text-right !bg-transparent`}>
+                      <td className={`${totalCol} px-2 py-1.5 text-right ${style.solid}`}>
                         <span className="num">{fmt(grid.sectionTotal[section])}</span>
                       </td>
-                      <td className={`${accumCol} px-2 py-1.5 text-right !bg-transparent`}>
+                      <td className={`${accumCol} px-2 py-1.5 text-right ${style.solid}`}>
                         <span className="num">{fmt(sectionAccum(section))}</span>
                       </td>
                     </tr>
