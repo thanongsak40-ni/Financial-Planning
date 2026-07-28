@@ -510,7 +510,13 @@ function HistorySection({ snapshots, colors }) {
 function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
   const [form, setForm] = useState({ name: '', cost: 0, market_value: 0, category_id: '', year: '', units: '', last_price: '' })
   const [mode, setMode] = useState('total') // total = กรอกมูลค่ารวม · units = หน่วย × ราคา
+  // ต้นทุนเฉลี่ยต่อหน่วย — แอปโบรกเกอร์แสดงค่านี้ ผู้ใช้เลยอยากกรอกตรง ๆ
+  // ไม่เก็บลงฐานข้อมูล (canonical คือต้นทุนรวม) แค่ sync สองทางในฟอร์ม
+  const [avgCost, setAvgCost] = useState('')
   const last = useRef(null)
+
+  // ตัดเศษ floating point เช่น 20.73 × 100 = 2072.9999999999998 → 2073
+  const clean = (n) => Number(n.toPrecision(12))
 
   if (state && state !== last.current) {
     last.current = state
@@ -525,10 +531,33 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
       units: state.units ?? '',
       last_price: state.last_price ?? '',
     })
+    const c = Number(state.cost) || 0
+    const u = Number(state.units) || 0
+    setAvgCost(byUnits && c > 0 && u > 0 ? String(clean(c / u)) : '')
   }
   if (!state) return null
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
+  /** แก้ต้นทุนเฉลี่ย → คำนวณต้นทุนรวมให้ */
+  const changeAvg = (raw) => {
+    setAvgCost(raw)
+    const avg = Number(raw)
+    const u = Number(form.units)
+    if (avg > 0 && u > 0) set('cost', clean(avg * u))
+  }
+  /** แก้ต้นทุนรวม → คำนวณต้นทุนเฉลี่ยกลับ */
+  const changeTotalCost = (v) => {
+    set('cost', v)
+    const u = Number(form.units)
+    setAvgCost(v > 0 && u > 0 ? String(clean(v / u)) : '')
+  }
+  /** แก้จำนวนหน่วย → ถ้ามีต้นทุนเฉลี่ยอยู่ ยึดเฉลี่ยแล้วคำนวณรวมใหม่ (แบบโบรกเกอร์) */
+  const changeUnits = (raw) => {
+    const u = Number(raw)
+    const avg = Number(avgCost)
+    setForm((f) => ({ ...f, units: raw, ...(u > 0 && avg > 0 ? { cost: clean(avg * u) } : {}) }))
+  }
   const computed = mode === 'units' ? (Number(form.units) || 0) * (Number(form.last_price) || 0) : form.market_value
   const gain = computed - form.cost
 
@@ -571,10 +600,6 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
           <input autoFocus className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="เช่น KBANK, SCBGOLD, Bitcoin" />
         </Field>
 
-        <Field label="ต้นทุนรวมที่จ่ายไป">
-          <MoneyInput value={form.cost} onChange={(v) => set('cost', v)} />
-        </Field>
-
         <Field label="วิธีคิดมูลค่าปัจจุบัน">
           <div className="grid grid-cols-2 gap-2">
             {[
@@ -606,7 +631,7 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
                   step="any"
                   className="input num text-right"
                   value={form.units}
-                  onChange={(e) => set('units', e.target.value)}
+                  onChange={(e) => changeUnits(e.target.value)}
                   placeholder="เช่น 1000"
                 />
               </Field>
@@ -621,6 +646,22 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
                 />
               </Field>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="ต้นทุนเฉลี่ยต่อหน่วย" hint="กรอกช่องไหนก็ได้ อีกช่องคำนวณให้เอง">
+                <input
+                  type="number"
+                  step="any"
+                  className="input num text-right"
+                  value={avgCost}
+                  onChange={(e) => changeAvg(e.target.value)}
+                  placeholder="เช่น 20.73"
+                />
+              </Field>
+              <Field label="ต้นทุนรวมที่จ่ายไป">
+                <MoneyInput value={form.cost} onChange={changeTotalCost} />
+              </Field>
+            </div>
+
             <p className="flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
               <Info size={16} className="mt-px shrink-0" />
               <span>
@@ -633,12 +674,17 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
             </p>
           </>
         ) : (
-          <Field label="มูลค่าปัจจุบันรวม">
-            <MoneyInput value={form.market_value} onChange={(v) => set('market_value', v)} />
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="ต้นทุนรวมที่จ่ายไป">
+              <MoneyInput value={form.cost} onChange={(v) => set('cost', v)} />
+            </Field>
+            <Field label="มูลค่าปัจจุบันรวม">
+              <MoneyInput value={form.market_value} onChange={(v) => set('market_value', v)} />
+            </Field>
+          </div>
         )}
 
-        {(form.cost > 0 || computed > 0) && (
+        {form.cost > 0 && computed > 0 && (
           <div className={`rounded-lg p-3 text-sm ${gain >= 0 ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'}`}>
             {gain >= 0 ? 'กำไร' : 'ขาดทุน'} <strong className="num">{fmtExact(Math.abs(gain), 2)}</strong> บาท
             {form.cost > 0 && <span className="num ml-1">({fmtPct(gain / form.cost)})</span>}
