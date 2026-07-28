@@ -8,7 +8,7 @@ import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
 import {
   PageHeader, Spinner, ErrorBox, Section, Empty, StatCard,
-  Modal, Field, MoneyInput, ConfirmButton, Money, ProgressBar,
+  Modal, Field, MoneyInput, ConfirmButton, Money, ProgressBar, Tabs,
 } from '../components/ui'
 import { DonutChart, DivergingBars, TrendLines } from '../components/charts'
 import { useChartColors, capSeries } from '../lib/chartTheme'
@@ -29,6 +29,7 @@ export default function Portfolio() {
   const [editing, setEditing] = useState(null)
   const [realCostModal, setRealCostModal] = useState(false)
   const [weightModal, setWeightModal] = useState(false)
+  const [groupFilter, setGroupFilter] = useState('all')
 
   const view = useMemo(() => {
     if (!data) return null
@@ -42,6 +43,14 @@ export default function Portfolio() {
   if (error) return <ErrorBox error={error} onRetry={refetch} />
 
   const { summary, groups, rebal } = view
+
+  // กรองเฉพาะตารางรายการ — กราฟ สัดส่วน และการปรับสมดุลยังคงแสดงภาพรวมทั้งพอร์ต
+  const shownItems =
+    groupFilter === 'all'
+      ? summary.items
+      : summary.items.filter((p) => (groupFilter === 'none' ? !p.category_id : p.category_id === groupFilter))
+  const shownCost = shownItems.reduce((sum, p) => sum + p.cost, 0)
+  const shownValue = shownItems.reduce((sum, p) => sum + p.market_value, 0)
   const investCats = (data.categories ?? []).filter((c) => c.section === 'saving' && c.is_investment && c.active)
   const catName = Object.fromEntries((data.categories ?? []).map((c) => [c.id, c.name]))
 
@@ -252,6 +261,22 @@ export default function Portfolio() {
           <Section
             title="รายการในพอร์ต"
             subtitle="แก้ราคาในตารางได้เลย — กด Enter บันทึกแล้วลงแถวถัดไป · ลูกศร ↑ ↓ เลื่อนขึ้นลง"
+            right={
+              groups.length > 1 && (
+                <Tabs
+                  value={groupFilter}
+                  onChange={setGroupFilter}
+                  size="sm"
+                  options={[
+                    { value: 'all', label: `ทั้งหมด (${summary.items.length})` },
+                    ...groups.map((g) => ({
+                      value: g.categoryId ?? 'none',
+                      label: `${g.name === UNGROUPED ? 'ไม่ผูกกลุ่ม' : g.name} (${g.count})`,
+                    })),
+                  ]}
+                />
+              )
+            }
           >
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -271,7 +296,7 @@ export default function Portfolio() {
                   </tr>
                 </thead>
                 <tbody>
-                  {summary.items.map((p, i) => (
+                  {shownItems.map((p, i) => (
                     <tr key={p.id} className="group border-b border-slate-100 last:border-0 dark:border-slate-800/60">
                       <td className="px-2 py-1.5 font-medium">{p.name}</td>
                       <td className="px-2 py-1.5 text-slate-500 dark:text-slate-400">
@@ -306,19 +331,21 @@ export default function Portfolio() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-slate-200 font-bold dark:border-slate-700">
-                    <td colSpan={3} className="px-2 py-2.5">รวม</td>
-                    <td className="num px-2 py-2.5 text-right">{fmt0(summary.totalCost)}</td>
-                    <td />
-                    <td className="num px-2 py-2.5 text-right">{fmt0(summary.totalValue)}</td>
-                    <td className="px-2 py-2.5 text-right">
-                      <Money value={summary.totalGain} signed tone={summary.totalGain >= 0 ? 'income' : 'expense'} />
+                    <td colSpan={3} className="px-2 py-2.5">
+                      {groupFilter === 'all' ? 'รวม' : 'รวมกลุ่มที่เลือก'}
                     </td>
-                    <td className={`num px-2 py-2.5 text-right text-xs ${summary.totalPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                      {fmtPct(summary.totalPct)}
+                    <td className="num px-2 py-2.5 text-right">{fmt0(shownCost)}</td>
+                    <td />
+                    <td className="num px-2 py-2.5 text-right">{fmt0(shownValue)}</td>
+                    <td className="px-2 py-2.5 text-right">
+                      <Money value={shownValue - shownCost} signed tone={shownValue - shownCost >= 0 ? 'income' : 'expense'} />
+                    </td>
+                    <td className={`num px-2 py-2.5 text-right text-xs ${shownValue - shownCost >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      {fmtPct(shownCost ? (shownValue - shownCost) / shownCost : 0)}
                     </td>
                     <td />
                   </tr>
-                  {summary.realCostSet && summary.realCost !== summary.totalCost && (
+                  {groupFilter === 'all' && summary.realCostSet && summary.realCost !== summary.totalCost && (
                     <tr className="text-sm">
                       <td colSpan={3} className="px-2 py-2 text-slate-500 dark:text-slate-400">คิดจากต้นทุนแท้จริง</td>
                       <td className="num px-2 py-2 text-right text-slate-500">{fmt0(summary.realCost)}</td>
