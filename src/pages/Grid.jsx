@@ -1,11 +1,11 @@
 import { Fragment, useMemo, useState, useRef, useCallback } from 'react'
 import {
-  Plus, Pencil, StickyNote, Wand2, ChevronDown, ChevronRight, Trash2,
+  Plus, Pencil, StickyNote, Wand2, ChevronDown, ChevronRight, ChevronLeft, Trash2,
 } from 'lucide-react'
 import { useFinanceData, useSaveEntry, useFillRow, useSaveCategory, useDeleteCategory, useSaveNote, useMonthNotes } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useToast } from '../components/Toast'
-import { PageHeader, Spinner, ErrorBox, Modal, Field, MoneyInput, ConfirmButton } from '../components/ui'
+import { PageHeader, Spinner, ErrorBox, Modal, Field, MoneyInput, ConfirmButton, Money } from '../components/ui'
 import { MONTHS, MONTHS_FULL, SECTIONS, SECTION_LABEL, SECTION_SUM_LABEL, yearGrid, priorYearsByCat, LIQUIDITY } from '../lib/calc'
 import { fmt, fmt0 } from '../lib/format'
 
@@ -111,6 +111,12 @@ export default function Grid() {
   const [catModal, setCatModal] = useState(null)
   const [fillModal, setFillModal] = useState(null)
   const [noteModal, setNoteModal] = useState(null)
+  // จอเล็กแสดงทีละเดือน — เริ่มที่เดือนปัจจุบันถ้าดูปีนี้อยู่
+  const [mobileMonth, setMobileMonth] = useState(() =>
+    new Date().getFullYear() === Number(localStorage.getItem('year') || new Date().getFullYear())
+      ? new Date().getMonth()
+      : 0,
+  )
 
   const type = 'actual'
   const thisYear = new Date().getFullYear()
@@ -177,7 +183,109 @@ export default function Grid() {
         </button>
       </PageHeader>
 
-      <div className="card overflow-hidden">
+      {/* ---------- จอเล็ก: กรอกทีละเดือน ----------
+           ตารางทั้งปีมีคอลัมน์ตรึงซ้าย-ขวารวม ~400px ซึ่งกว้างกว่าจอมือถือทั้งจอ
+           จึงเปลี่ยนเป็นกรอกทีละเดือนแทน — จอ lg ขึ้นไปยังใช้ตารางเต็มเหมือนเดิม */}
+      <div className="space-y-4 lg:hidden">
+        {/* เลือกเดือน */}
+        <div className="card flex items-center justify-between gap-1 px-2 py-1.5">
+          <button
+            onClick={() => setMobileMonth((m) => Math.max(0, m - 1))}
+            disabled={mobileMonth === 0}
+            className="btn-ghost !p-2 disabled:opacity-30"
+            aria-label="เดือนก่อนหน้า"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div className="flex items-center gap-1">
+            <select
+              value={mobileMonth}
+              onChange={(e) => setMobileMonth(Number(e.target.value))}
+              className="cursor-pointer rounded-lg bg-transparent py-1.5 text-center text-base font-semibold focus:outline-none"
+            >
+              {MONTHS_FULL.map((m, i) => (
+                <option key={m} value={i}>{m} {year}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setNoteModal({ month: mobileMonth + 1, note: noteByMonth[mobileMonth + 1] || '' })}
+              className={`btn-ghost !p-2 ${noteByMonth[mobileMonth + 1] ? '!text-amber-500' : ''}`}
+              aria-label="หมายเหตุประจำเดือน"
+            >
+              <StickyNote size={17} />
+            </button>
+          </div>
+          <button
+            onClick={() => setMobileMonth((m) => Math.min(11, m + 1))}
+            disabled={mobileMonth === 11}
+            className="btn-ghost !p-2 disabled:opacity-30"
+            aria-label="เดือนถัดไป"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+
+        {/* สามหมวด */}
+        {SECTIONS.map((section) => {
+          const style = SECTION_STYLE[section]
+          const rows = visible.filter((c) => c.section === section)
+          return (
+            <section key={section} className="card overflow-hidden">
+              <header className={`flex items-center justify-between px-3 py-2 text-sm font-semibold ${style.head}`}>
+                <span className="flex items-center gap-1.5">
+                  <span className={`h-3.5 w-1 rounded-full ${style.bar}`} />
+                  {SECTION_LABEL[section]}
+                </span>
+                <span className="num">{fmt(grid.sectionMonthly[section][mobileMonth]) || '0'}</span>
+              </header>
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {rows.map((cat) => {
+                  const months = grid.byCat[cat.id]
+                  const statuses = grid.byCatStatus[cat.id] || {}
+                  return (
+                    <MobileRow
+                      key={cat.id}
+                      cat={cat}
+                      value={months?.[mobileMonth] || 0}
+                      status={statuses[mobileMonth]}
+                      tone={style.text}
+                      onEdit={() => setCatModal(cat)}
+                      onSave={(v) => handleSave(cat.id, mobileMonth + 1, v, statuses[mobileMonth])}
+                      onCycleStatus={() => {
+                        const idx = STATUS_CYCLE.indexOf(statuses[mobileMonth] ?? null)
+                        const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length]
+                        handleSave(cat.id, mobileMonth + 1, months?.[mobileMonth] || 0, next)
+                      }}
+                    />
+                  )
+                })}
+              </div>
+              <button
+                onClick={() => setCatModal({ section })}
+                className="w-full cursor-pointer border-t border-slate-100 px-3 py-2.5 text-left text-xs font-medium text-slate-400 transition hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
+              >
+                + เพิ่มรายการใน{SECTION_LABEL[section]}
+              </button>
+            </section>
+          )
+        })}
+
+        {/* สรุปเดือนที่เลือก */}
+        <section className="card-pad">
+          <div className="flex items-baseline justify-between">
+            <span className="font-semibold">
+              คงเหลือ
+              <span className="ml-1.5 text-xs font-normal text-slate-400">รับ − ออม − จ่าย</span>
+            </span>
+            <Money value={grid.balance[mobileMonth]} signed className="text-lg font-bold" />
+          </div>
+          <p className="num mt-2 border-t border-slate-100 pt-2 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            รวมทั้งปี — รับ {fmt(grid.sectionTotal.income) || 0} · ออม {fmt(grid.sectionTotal.saving) || 0} · จ่าย {fmt(grid.sectionTotal.expense) || 0}
+          </p>
+        </section>
+      </div>
+
+      <div className="card hidden overflow-hidden lg:block">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead className="sticky top-14 z-20">
@@ -448,6 +556,50 @@ export default function Grid() {
 }
 
 // ---------------------------------------------------------------------------
+
+/** แถวกรอกบนจอเล็ก — ฟอนต์ 16px กัน iOS ซูมหน้าจอเองตอนแตะช่องกรอก */
+function MobileRow({ cat, value, status, tone, onSave, onCycleStatus, onEdit }) {
+  const [text, setText] = useState('')
+  const [editing, setEditing] = useState(false)
+
+  const commit = () => {
+    setEditing(false)
+    const num = Number(String(text).replace(/[, ฿]/g, '')) || 0
+    if (num !== (Number(value) || 0)) onSave(num)
+  }
+
+  return (
+    <div className="flex items-center gap-0.5 pr-1">
+      <button
+        onClick={onCycleStatus}
+        className="shrink-0 cursor-pointer p-2.5"
+        title={`สถานะ: ${STATUS_LABEL[status] ?? 'รอ'} (แตะเพื่อเปลี่ยน)`}
+      >
+        <span className={`block size-2 rounded-full transition ${STATUS_DOT[status] || 'bg-slate-200 dark:bg-slate-700'}`} />
+      </button>
+      <button onClick={onEdit} className="min-w-0 flex-1 cursor-pointer truncate py-2.5 text-left text-sm">
+        {cat.name}
+        {cat.is_investment && (
+          <span className="ml-1.5 rounded bg-violet-100 px-1 py-px text-[10px] font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+            ลงทุน
+          </span>
+        )}
+      </button>
+      <input
+        inputMode="decimal"
+        value={editing ? text : fmt(value)}
+        placeholder="0"
+        onFocus={(e) => { setEditing(true); setText(value ? String(value) : ''); requestAnimationFrame(() => e.target.select()) }}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+        className={`num w-28 shrink-0 rounded-lg bg-transparent px-2 py-2 text-right text-base transition focus:bg-slate-50 focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:focus:bg-slate-800 ${
+          value ? tone : 'text-slate-300 dark:text-slate-700'
+        }`}
+      />
+    </div>
+  )
+}
 
 function CategoryModal({ state, onClose, onSave, onDelete, categories }) {
   const editing = state?.id

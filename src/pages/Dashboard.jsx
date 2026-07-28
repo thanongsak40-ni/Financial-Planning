@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Landmark, PiggyBank, Wallet, Percent,
-  ArrowRight, CheckCircle2, TrendingUp,
+  ArrowRight, CheckCircle2, XCircle, TrendingUp,
 } from 'lucide-react'
 import { useFinanceData } from '../hooks/useData'
 import Onboarding from '../components/Onboarding'
@@ -51,6 +51,77 @@ export default function Dashboard() {
       return t && (!latest || t > latest) ? t : latest
     }, null),
   )
+
+  // ---- เช็กสุขภาพการเงิน 7 ข้อ — เกณฑ์ตรงกับที่อธิบายไว้ใน ROADMAP ----
+  const negMonths = d.actual.balance.slice(0, d.nowMonth).filter((v) => v < 0).length
+  const portDays = (() => {
+    if (!(data.portfolio ?? []).length) return null
+    const latest = data.portfolio.reduce((l, p) => {
+      const t = p.updated_at ? new Date(p.updated_at) : null
+      return t && (!l || t > l) ? t : l
+    }, null)
+    return latest ? Math.floor((Date.now() - latest) / 86400000) : null
+  })()
+
+  const healthChecks = [
+    {
+      key: 'savings-rate',
+      pass: d.savingsRate >= 0.2,
+      title: 'อัตราการออมอย่างน้อย 20% ของรายรับ',
+      detail: `ออมไป ${fmt0(d.ytd.saving)} จากรายรับ ${fmt0(d.ytd.income)} = ${fmtPct(d.savingsRate)}`,
+      to: '/actual',
+    },
+    {
+      key: 'emergency',
+      pass: d.health.emergencyMonths >= 6,
+      title: 'เงินสำรองฉุกเฉินครอบคลุมรายจ่าย 6 เดือน',
+      detail: `มี ${fmt0(d.health.emergencyFund)} ÷ รายจ่ายเฉลี่ย ${fmt0(d.health.avgExpense)}/เดือน = ${d.health.emergencyMonths.toFixed(1)} เดือน`,
+      to: '/savings',
+    },
+    {
+      key: 'no-deficit',
+      pass: negMonths === 0,
+      title: 'ทุกเดือนที่ผ่านมารายรับพอกับรายจ่าย+เงินออม',
+      detail: negMonths === 0
+        ? `ครบทั้ง ${d.nowMonth} เดือนที่ผ่านมา ไม่มีเดือนไหนติดลบ`
+        : `มี ${negMonths} เดือนที่คงเหลือติดลบ ต้องดึงเงินเก็บมาโปะ`,
+      to: '/actual',
+    },
+    {
+      key: 'expense-ratio',
+      pass: d.expenseRatio < 0.7,
+      title: 'รายจ่ายไม่เกิน 70% ของรายรับ',
+      detail: `รายจ่าย ${fmt0(d.ytd.expense)} จากรายรับ ${fmt0(d.ytd.income)} = ${fmtPct(d.expenseRatio)}`,
+      to: '/actual',
+    },
+    {
+      key: 'debt',
+      pass: d.health.debtToAsset < 0.5,
+      title: 'หนี้สินไม่เกินครึ่งหนึ่งของสินทรัพย์',
+      detail: `หนี้ ${fmt0(d.totalLiability)} จากสินทรัพย์ ${fmt0(d.totalAsset)} = ${fmtPct(d.health.debtToAsset)}`,
+      to: '/balance',
+    },
+    ...(portDays !== null
+      ? [{
+          key: 'port-fresh',
+          pass: portDays <= 30,
+          title: 'ราคาพอร์ตอัปเดตภายใน 30 วัน',
+          detail: portDays <= 30
+            ? `อัปเดตล่าสุดเมื่อ ${portDays === 0 ? 'วันนี้' : portDays + ' วันก่อน'}`
+            : `ค้างมา ${portDays} วัน — ตัวเลขกำไร/ขาดทุนอาจไม่ตรงกับความจริงแล้ว`,
+          to: '/portfolio',
+        }]
+      : []),
+    {
+      key: 'goal-set',
+      pass: Boolean(data.profile?.target_age && data.profile?.target_amount),
+      title: 'ตั้งเป้าหมายการเงินระยะยาวแล้ว',
+      detail: data.profile?.target_age && data.profile?.target_amount
+        ? `เป้า ${fmt0(data.profile.target_amount)} บาท ตอนอายุ ${data.profile.target_age} ปี`
+        : 'ยังไม่ได้ตั้ง — เป้าที่เขียนไว้ชัดเจนมีโอกาสสำเร็จมากกว่า',
+      to: data.profile?.target_age ? '/milestone' : '/settings',
+    },
+  ]
 
   // ตัวที่กำไรมากสุด 2 ตัว และขาดทุนมากสุด 1 ตัว (items เรียงตามกำไรจากมากไปน้อยมาแล้ว)
   const movers = (() => {
@@ -126,42 +197,8 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* ---------- สุขภาพการเงิน ---------- */}
-          <div className="grid gap-3 lg:grid-cols-3">
-            <Section title="เงินสำรองฉุกเฉิน" subtitle="ควรครอบคลุมรายจ่าย 6 เดือน">
-              <p className="mb-2 text-2xl font-bold text-slate-900 dark:text-slate-50">
-                {d.health.emergencyMonths.toFixed(1)}
-                <span className="ml-1 text-sm font-medium text-slate-400">เดือน</span>
-              </p>
-              <ProgressBar value={d.health.emergencyMonths} max={6} tone="saving" showPct={false} />
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                มี <span className="num">{fmt0(d.health.emergencyFund)}</span> · รายจ่ายเฉลี่ยเดือนละ{' '}
-                <span className="num">{fmt0(d.health.avgExpense)}</span>
-              </p>
-            </Section>
-
-            <Section title="สัดส่วนรายจ่ายต่อรายรับ" subtitle="ยิ่งต่ำยิ่งมีกำลังออม">
-              <p className={`mb-2 text-2xl font-bold ${d.expenseRatio > 0.7 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-50'}`}>
-                {fmtPct(d.expenseRatio)}
-              </p>
-              <ProgressBar value={d.expenseRatio} max={1} tone="expense" showPct={false} />
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                รายรับ <span className="num">{fmt0(d.ytd.income)}</span> · รายจ่าย{' '}
-                <span className="num">{fmt0(d.ytd.expense)}</span> (สะสมถึงเดือนนี้)
-              </p>
-            </Section>
-
-            <Section title="หนี้สินต่อสินทรัพย์" subtitle="ต่ำกว่า 50% ถือว่าปลอดภัย">
-              <p className={`mb-2 text-2xl font-bold ${d.health.debtToAsset > 0.5 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-50'}`}>
-                {fmtPct(d.health.debtToAsset)}
-              </p>
-              <ProgressBar value={d.health.debtToAsset} max={1} tone="expense" showPct={false} />
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                หนี้ <span className="num">{fmt0(d.totalLiability)}</span> · สินทรัพย์{' '}
-                <span className="num">{fmt0(d.totalAsset)}</span>
-              </p>
-            </Section>
-          </div>
+          {/* ---------- เช็กสุขภาพการเงิน ---------- */}
+          {!d.isFutureYear && <HealthChecklist checks={healthChecks} />}
 
           {/* ---------- กราฟหลัก ---------- */}
           <div className="grid gap-4 xl:grid-cols-2">
@@ -403,5 +440,53 @@ export default function Dashboard() {
         </div>
       )}
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
+/** เช็กสุขภาพการเงิน — ผ่าน/ไม่ผ่านพร้อมตัวเลขจริงประกอบทุกข้อ */
+function HealthChecklist({ checks }) {
+  const passed = checks.filter((c) => c.pass).length
+  const allPass = passed === checks.length
+  return (
+    <Section
+      title="เช็กสุขภาพการเงิน"
+      subtitle={
+        allPass
+          ? `ผ่านครบทั้ง ${checks.length} ข้อ — แข็งแรงมาก`
+          : `ผ่าน ${passed} จาก ${checks.length} ข้อ`
+      }
+      right={
+        <span className={`text-lg font-bold ${allPass ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'}`}>
+          {passed}/{checks.length}
+        </span>
+      }
+    >
+      <ProgressBar value={passed} max={checks.length} tone={allPass ? 'income' : 'brand'} showPct={false} height="h-2" />
+      <ul className="mt-4 grid gap-x-6 gap-y-1 lg:grid-cols-2">
+        {checks.map((c) => (
+          <li key={c.key}>
+            <Link
+              to={c.to}
+              className="flex items-start gap-2.5 rounded-lg px-2 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+              {c.pass ? (
+                <CheckCircle2 size={18} className="mt-px shrink-0 text-emerald-500" />
+              ) : (
+                <XCircle size={18} className="mt-px shrink-0 text-amber-500" />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className={`block text-sm font-medium ${c.pass ? 'text-slate-700 dark:text-slate-300' : 'text-slate-800 dark:text-slate-100'}`}>
+                  {c.title}
+                </span>
+                <span className="num block text-xs text-slate-500 dark:text-slate-400">{c.detail}</span>
+              </span>
+              <ArrowRight size={14} className="mt-1 shrink-0 text-slate-300 dark:text-slate-600" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Section>
   )
 }
