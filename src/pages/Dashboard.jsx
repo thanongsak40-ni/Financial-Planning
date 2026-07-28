@@ -10,7 +10,7 @@ import { useYear } from '../hooks/useYear'
 import { PageHeader, Spinner, ErrorBox, StatCard, Section, ProgressBar, Empty, Money } from '../components/ui'
 import { ChartCard, MonthlyBars, TrendLines, DonutChart, DataTable } from '../components/charts'
 import { useChartColors, capSeries } from '../lib/chartTheme'
-import { dashboard, MONTHS, MONTHS_FULL } from '../lib/calc'
+import { dashboard, liquidityBreakdown, MONTHS, MONTHS_FULL } from '../lib/calc'
 import { fmt0, fmtPct, fmtSigned, fmtAgo } from '../lib/format'
 
 export default function Dashboard() {
@@ -52,7 +52,17 @@ export default function Dashboard() {
     }, null),
   )
 
-  // ---- เช็กสุขภาพการเงิน 4 ข้อ — เกณฑ์ตรงกับที่อธิบายไว้ใน ROADMAP ----
+  // ---- เช็กสุขภาพการเงิน 6 ข้อ — เกณฑ์ตรงกับการ์ดในหน้าความมั่งคั่งสุทธิ ----
+  // สภาพคล่อง = เงินทุกก้อนที่ถอนได้ทันที (กว้างกว่าเงินสำรองฉุกเฉิน
+  // ซึ่งนับเฉพาะรายการที่ติ๊กไว้) — สองข้อนี้จึงเป็นคนละตัวเลขโดยตั้งใจ
+  const liq = liquidityBreakdown(
+    d.accum,
+    (data.categories ?? []).filter((c) => c.section === 'saving'),
+    d.balanceSheet.assets,
+  )
+  const liqMonths = d.health.avgExpense > 0 ? liq.liquid / d.health.avgExpense : 0
+  const nwToIncome = d.actual.sectionTotal.income > 0 ? d.netWorth / d.actual.sectionTotal.income : 0
+
   const healthChecks = [
     {
       key: 'savings-rate',
@@ -69,6 +79,13 @@ export default function Dashboard() {
       to: '/savings',
     },
     {
+      key: 'liquidity',
+      pass: liqMonths >= 6,
+      title: 'สภาพคล่องครอบคลุมรายจ่าย 6 เดือน',
+      detail: `เงินที่ถอนได้ทันทีทุกก้อน ${fmt0(liq.liquid)} ÷ รายจ่ายเฉลี่ย ${fmt0(d.health.avgExpense)}/เดือน = ${liqMonths.toFixed(1)} เดือน`,
+      to: '/balance',
+    },
+    {
       key: 'expense-ratio',
       pass: d.expenseRatio < 0.7,
       title: 'รายจ่ายไม่เกิน 70% ของรายรับ',
@@ -80,6 +97,13 @@ export default function Dashboard() {
       pass: d.health.debtToAsset < 0.5,
       title: 'หนี้สินไม่เกินครึ่งหนึ่งของสินทรัพย์',
       detail: `หนี้ ${fmt0(d.totalLiability)} จากสินทรัพย์ ${fmt0(d.totalAsset)} = ${fmtPct(d.health.debtToAsset)}`,
+      to: '/balance',
+    },
+    {
+      key: 'nw-to-income',
+      pass: nwToIncome >= 1,
+      title: 'ความมั่งคั่งสุทธิอย่างน้อย 1 เท่าของรายได้ทั้งปี',
+      detail: `ความมั่งคั่ง ${fmt0(d.netWorth)} ÷ รายรับทั้งปี ${fmt0(d.actual.sectionTotal.income)} = ${nwToIncome.toFixed(2)} เท่า`,
       to: '/balance',
     },
   ]
