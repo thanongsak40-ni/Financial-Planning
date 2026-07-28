@@ -52,17 +52,7 @@ export default function Dashboard() {
     }, null),
   )
 
-  // ---- เช็กสุขภาพการเงิน 7 ข้อ — เกณฑ์ตรงกับที่อธิบายไว้ใน ROADMAP ----
-  const negMonths = d.actual.balance.slice(0, d.nowMonth).filter((v) => v < 0).length
-  const portDays = (() => {
-    if (!(data.portfolio ?? []).length) return null
-    const latest = data.portfolio.reduce((l, p) => {
-      const t = p.updated_at ? new Date(p.updated_at) : null
-      return t && (!l || t > l) ? t : l
-    }, null)
-    return latest ? Math.floor((Date.now() - latest) / 86400000) : null
-  })()
-
+  // ---- เช็กสุขภาพการเงิน 4 ข้อ — เกณฑ์ตรงกับที่อธิบายไว้ใน ROADMAP ----
   const healthChecks = [
     {
       key: 'savings-rate',
@@ -79,15 +69,6 @@ export default function Dashboard() {
       to: '/savings',
     },
     {
-      key: 'no-deficit',
-      pass: negMonths === 0,
-      title: 'ทุกเดือนที่ผ่านมารายรับพอกับรายจ่าย+เงินออม',
-      detail: negMonths === 0
-        ? `ครบทั้ง ${d.nowMonth} เดือนที่ผ่านมา ไม่มีเดือนไหนติดลบ`
-        : `มี ${negMonths} เดือนที่คงเหลือติดลบ ต้องดึงเงินเก็บมาโปะ`,
-      to: '/actual',
-    },
-    {
       key: 'expense-ratio',
       pass: d.expenseRatio < 0.7,
       title: 'รายจ่ายไม่เกิน 70% ของรายรับ',
@@ -100,26 +81,6 @@ export default function Dashboard() {
       title: 'หนี้สินไม่เกินครึ่งหนึ่งของสินทรัพย์',
       detail: `หนี้ ${fmt0(d.totalLiability)} จากสินทรัพย์ ${fmt0(d.totalAsset)} = ${fmtPct(d.health.debtToAsset)}`,
       to: '/balance',
-    },
-    ...(portDays !== null
-      ? [{
-          key: 'port-fresh',
-          pass: portDays <= 30,
-          title: 'ราคาพอร์ตอัปเดตภายใน 30 วัน',
-          detail: portDays <= 30
-            ? `อัปเดตล่าสุดเมื่อ ${portDays === 0 ? 'วันนี้' : portDays + ' วันก่อน'}`
-            : `ค้างมา ${portDays} วัน — ตัวเลขกำไร/ขาดทุนอาจไม่ตรงกับความจริงแล้ว`,
-          to: '/portfolio',
-        }]
-      : []),
-    {
-      key: 'goal-set',
-      pass: Boolean(data.profile?.target_age && data.profile?.target_amount),
-      title: 'ตั้งเป้าหมายการเงินระยะยาวแล้ว',
-      detail: data.profile?.target_age && data.profile?.target_amount
-        ? `เป้า ${fmt0(data.profile.target_amount)} บาท ตอนอายุ ${data.profile.target_age} ปี`
-        : 'ยังไม่ได้ตั้ง — เป้าที่เขียนไว้ชัดเจนมีโอกาสสำเร็จมากกว่า',
-      to: data.profile?.target_age ? '/milestone' : '/settings',
     },
   ]
 
