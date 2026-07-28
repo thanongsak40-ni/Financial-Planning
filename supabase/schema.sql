@@ -84,8 +84,8 @@ create table if not exists public.portfolio (
   user_id      uuid not null references auth.users(id) on delete cascade,
   category_id  uuid references public.categories(id) on delete set null,
   name         text not null,
-  cost         numeric(14,2) not null default 0,
-  market_value numeric(14,2) not null default 0,
+  cost         numeric(18,4) not null default 0,
+  market_value numeric(18,4) not null default 0,
   -- ถ้ากรอกทั้งคู่ ระบบจะคิด market_value = units × last_price ให้เอง
   -- เว้นว่าง = กรอกมูลค่ารวมเองแบบเดิม
   units        numeric(18,6),

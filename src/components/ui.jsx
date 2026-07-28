@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react'
-import { fmt0, fmtPct, fmtSigned } from '../lib/format'
+import { fmt0, fmtExact, fmtPct, fmtSigned } from '../lib/format'
 
 // ---------------------------------------------------------------------------
 //  พื้นฐาน
@@ -242,11 +242,11 @@ export function Field({ label, hint, error, children }) {
 
 /** ช่องกรอกเงิน — รับ comma ได้ จัดรูปแบบให้ตอนออกจากช่อง */
 export function MoneyInput({ value, onChange, className = '', ...props }) {
-  const [text, setText] = useState(() => (value ? fmt0(value) : ''))
+  const [text, setText] = useState(() => (value ? fmtExact(value) : ''))
   const [focused, setFocused] = useState(false)
 
   useEffect(() => {
-    if (!focused) setText(value ? fmt0(value) : '')
+    if (!focused) setText(value ? fmtExact(value) : '')
   }, [value, focused])
 
   return (
@@ -265,7 +265,7 @@ export function MoneyInput({ value, onChange, className = '', ...props }) {
         setFocused(false)
         const num = Number(String(text).replace(/[, ฿]/g, '')) || 0
         onChange?.(num)
-        setText(num ? fmt0(num) : '')
+        setText(num ? fmtExact(num) : '')
       }}
     />
   )

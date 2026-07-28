@@ -11,6 +11,13 @@ export function fmt(v, blankZero = true) {
   return nf0.format(Math.round(n))
 }
 
+/** แสดงตามที่กรอกจริง — คั่นหลักพัน เก็บทศนิยมเท่าที่มี (ไม่เติมศูนย์ ไม่ปัดเป็นจำนวนเต็ม) */
+export function fmtExact(v, maxDecimals = 4) {
+  const n = Number(v)
+  if (v === null || v === undefined || v === '' || Number.isNaN(n)) return ''
+  return n.toLocaleString('en-US', { maximumFractionDigits: maxDecimals })
+}
+
 /** 28,700 — ศูนย์แสดงเป็น 0 */
 export const fmt0 = (v) => nf0.format(Math.round(Number(v) || 0))
 export const fmt2 = (v) => nf2.format(Number(v) || 0)
