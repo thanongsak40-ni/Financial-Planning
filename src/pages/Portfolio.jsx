@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef } from 'react'
 import { Plus, Pencil, TrendingUp, Trash2, Coins, Scale, History, Loader2, Info } from 'lucide-react'
 import {
-  useFinanceData, useUpsertRow, useDeleteRow, useSetSetting,
+  useFinanceData, useUpsertRow, useDeleteRow, useSetSetting, useDeleteSetting,
   useUpdatePrices, useSaveTargetWeights,
 } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
@@ -21,6 +21,7 @@ export default function Portfolio() {
   const upsert = useUpsertRow('portfolio')
   const del = useDeleteRow('portfolio')
   const setSetting = useSetSetting()
+  const deleteSetting = useDeleteSetting()
   const updatePrices = useUpdatePrices()
   const saveWeights = useSaveTargetWeights()
   const colors = useChartColors()
@@ -393,10 +394,20 @@ export default function Portfolio() {
         open={realCostModal}
         current={summary.realCost}
         fallback={summary.totalCost}
+        realCostSet={summary.realCostSet}
         onClose={() => setRealCostModal(false)}
         onSave={(v) =>
           setSetting.mutate({ key: 'real_cost', value: v }, {
             onSuccess: () => { toast.success('บันทึกต้นทุนแท้จริงแล้ว'); setRealCostModal(false) },
+            onError: (e) => toast.error(e.message),
+          })
+        }
+        onClear={() =>
+          deleteSetting.mutate({ key: 'real_cost' }, {
+            onSuccess: () => {
+              toast.success('กลับไปใช้ผลรวมต้นทุนรายตัวแล้ว — ขยับตามอัตโนมัติทุกครั้งที่แก้รายการ')
+              setRealCostModal(false)
+            },
             onError: (e) => toast.error(e.message),
           })
         }
@@ -708,7 +719,7 @@ function AssetModal({ state, year, categories, onClose, onSave, onDelete }) {
   )
 }
 
-function RealCostModal({ open, current, fallback, onClose, onSave }) {
+function RealCostModal({ open, current, fallback, realCostSet, onClose, onSave, onClear }) {
   const [value, setValue] = useState(0)
   const wasOpen = useRef(false)
   if (open && !wasOpen.current) { wasOpen.current = true; setValue(current) }
@@ -721,6 +732,11 @@ function RealCostModal({ open, current, fallback, onClose, onSave }) {
       title="ต้นทุนแท้จริงของพอร์ต"
       footer={
         <>
+          {realCostSet && (
+            <button onClick={onClear} className="btn-ghost mr-auto text-sm">
+              ใช้ผลรวมรายการอัตโนมัติ
+            </button>
+          )}
           <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
           <button onClick={() => onSave(value)} className="btn-primary">บันทึก</button>
         </>
@@ -728,10 +744,17 @@ function RealCostModal({ open, current, fallback, onClose, onSave }) {
     >
       <div className="space-y-4">
         <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-          ผลรวมต้นทุนจากรายการทั้งหมดคือ <strong className="num">{fmt0(fallback)}</strong> บาท —
-          ถ้าเงินที่จ่ายออกไปจริงต่างจากนี้ (เช่น ขายบางส่วนไปแล้ว หรือมีค่าธรรมเนียม) ให้ใส่ยอดจริงตรงนี้
-          ระบบจะใช้ตัวเลขนี้คำนวณกำไร/ขาดทุนแทน
+          ผลรวมต้นทุนจากรายการทั้งหมดตอนนี้คือ <strong className="num">{fmt0(fallback)}</strong> บาท —
+          ถ้าเงินที่จ่ายออกไปจริงต่างจากนี้ (เช่น ขายบางส่วนไปแล้ว หรือมีค่าธรรมเนียม)
+          ให้ใส่ยอดจริงตรงนี้ ระบบจะใช้ตัวเลขนี้คำนวณกำไร/ขาดทุนแทน
         </p>
+        {realCostSet && (
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+            ตอนนี้ตั้งค่าเองไว้ที่ <strong className="num">{fmt0(current)}</strong> บาท
+            ซึ่ง<strong>ไม่ขยับตาม</strong>เมื่อแก้รายการในพอร์ต —
+            ถ้ากรอกต้นทุนรายตัวครบถูกแล้ว กด "ใช้ผลรวมรายการอัตโนมัติ" ด้านล่างจะดูแลตัวเองตลอดไป
+          </p>
+        )}
         <Field label="ต้นทุนแท้จริงรวม (บาท)">
           <MoneyInput value={value} onChange={setValue} autoFocus />
         </Field>

@@ -413,6 +413,13 @@ export function useSetSetting() {
   )
 }
 
+/** ลบค่า setting — ใช้ตอน 'เลิกตั้งเอง' เพื่อให้ระบบกลับไปคำนวณอัตโนมัติ */
+export function useDeleteSetting() {
+  return useFinanceMutation(async ({ key }, userId) =>
+    unwrap(await supabase.from('settings').delete().match({ user_id: userId, key })),
+  )
+}
+
 // ---------------------------------------------------------------------------
 //  ลบบัญชีตัวเอง (ล้างข้อมูลทั้งหมด)
 // ---------------------------------------------------------------------------
