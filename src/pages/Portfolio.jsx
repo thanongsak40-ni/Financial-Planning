@@ -215,8 +215,7 @@ export default function Portfolio() {
                         <th className="th text-right">มูลค่าตอนนี้</th>
                         <th className="th text-right">น้ำหนักจริง</th>
                         <th className="th text-right">เป้าหมาย</th>
-                        <th className="th text-right">เบี่ยง</th>
-                        <th className="th text-right">ต้องซื้อ / ขาย</th>
+                        <th className="th text-right">ห่างจากเป้าหมาย</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -228,18 +227,8 @@ export default function Portfolio() {
                             <td className="num px-2 py-2 text-right">{fmt0(r.value)}</td>
                             <td className="num px-2 py-2 text-right">{fmtPct(r.weight)}</td>
                             <td className="num px-2 py-2 text-right text-slate-500 dark:text-slate-400">{fmtPct(r.target)}</td>
-                            <td className={`num px-2 py-2 text-right ${off ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                            <td className={`num px-2 py-2 text-right ${off ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
                               {r.drift >= 0 ? '+' : '−'}{fmtPct(Math.abs(r.drift))}
-                            </td>
-                            <td className="px-2 py-2 text-right">
-                              {Math.abs(r.diff) < 100 ? (
-                                <span className="text-xs text-slate-400">พอดีแล้ว</span>
-                              ) : (
-                                <span className={`num font-medium ${r.diff > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                                  {r.diff > 0 ? 'ซื้อเพิ่ม ' : 'ขายออก '}
-                                  {fmt0(Math.abs(r.diff))}
-                                </span>
-                              )}
                             </td>
                           </tr>
                         )
@@ -248,8 +237,8 @@ export default function Portfolio() {
                   </table>
                 </div>
                 <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                  คิดจากมูลค่าพอร์ตรวม <span className="num">{fmt0(summary.totalValue)}</span> บาท —
-                  ในทางปฏิบัติ การปรับสมดุลด้วยการ<strong>ซื้อฝั่งที่ขาด</strong>มักดีกว่าขายฝั่งที่เกิน
+                  + คือเกินเป้า · − คือต่ำกว่าเป้า — ในทางปฏิบัติ
+                  การปรับสมดุลด้วยการ<strong>เทเงินใหม่เข้าฝั่งที่ติดลบ</strong>มักดีกว่าขายฝั่งที่เกิน
                   เพราะไม่มีภาระภาษีและค่าธรรมเนียมจากการขาย
                 </p>
               </>
