@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react'
 import { fmt0, fmtExact, fmtPct, fmtSigned } from '../lib/format'
+import { useVisualViewport } from '../hooks/useVisualViewport'
 
 // ---------------------------------------------------------------------------
 //  พื้นฐาน
@@ -161,6 +162,8 @@ export function ProgressBar({ value, max, tone = 'brand', showPct = true, height
 
 export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   const ref = useRef(null)
+  const vv = useVisualViewport(open)
+
   useEffect(() => {
     if (!open) return
     const onKey = (e) => e.key === 'Escape' && onClose?.()
@@ -176,25 +179,55 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   if (!open) return null
   const width = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }[size]
 
+  // ยึดกรอบกล่องกับพื้นที่ที่มองเห็นจริง ไม่ใช่ความสูงจอทั้งจอ —
+  // คีย์บอร์ดเด้งขึ้นมาแล้วกล่องจะหดตามเอง ไม่หายไปอยู่ข้างหลัง
+  const frame = vv
+    ? { top: vv.offsetTop, height: vv.height }
+    : { top: 0, height: '100dvh' }
+
+  // ปุ่มล่างเว้นระยะกันแถบ home ของ iPhone เฉพาะตอนไม่มีคีย์บอร์ด
+  // (คีย์บอร์ดขึ้นมาแล้วแถบ home หายไป ถ้าเว้นไว้จะกลายเป็นช่องว่างเปล่า)
+  const footerPad = vv?.keyboard ? undefined : 'calc(0.875rem + env(safe-area-inset-bottom))'
+
+  // เลื่อนช่องที่กำลังพิมพ์ให้อยู่กลางกล่องเสมอ — หลายกล่องมีหลายช่อง
+  // ช่องล่าง ๆ อาจยังโดนบัง แม้กล่องจะพอดีพื้นที่แล้ว
+  function handleFocus(e) {
+    if (!e.target.matches?.('input, textarea, select')) return
+    setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300)
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-900/50 p-0 sm:items-center sm:p-4 lg:backdrop-blur-sm">
+    <div
+      className="fixed inset-x-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4 lg:backdrop-blur-sm"
+      style={frame}
+    >
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`animate-in relative w-full ${width} rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-2xl dark:border-slate-800 dark:bg-slate-900`}
+        className={`animate-in relative flex max-h-full w-full flex-col ${width} rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-2xl dark:border-slate-800 dark:bg-slate-900`}
       >
-        <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
-          <button onClick={onClose} className="btn-ghost -mr-2 !p-1.5" aria-label="ปิด">
+        <header className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3.5 dark:border-slate-800">
+          <h3 className="min-w-0 truncate font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+          <button onClick={onClose} className="btn-ghost -mr-2 !p-2" aria-label="ปิด">
             <X size={18} />
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4"
+          onFocus={handleFocus}
+        >
+          {children}
+        </div>
+
         {footer && (
-          <footer className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3.5 dark:border-slate-800">
+          <footer
+            className="flex shrink-0 justify-end gap-2 border-t border-slate-200 px-5 py-3.5 dark:border-slate-800"
+            style={{ paddingBottom: footerPad }}
+          >
             {footer}
           </footer>
         )}

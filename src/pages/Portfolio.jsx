@@ -115,7 +115,7 @@ export default function Portfolio() {
       ) : (
         <div className="space-y-5">
           {/* ---------- KPI ---------- */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard label="ต้นทุนรวม" value={summary.realCost} tone="neutral" hint={summary.realCostSet ? 'ตั้งค่าเอง' : 'จากผลรวมรายการ'} />
             <StatCard label="มูลค่าปัจจุบัน" value={summary.totalValue} tone="brand" />
             <StatCard
@@ -135,7 +135,7 @@ export default function Portfolio() {
           </div>
 
           {/* ---------- สัดส่วนตามกลุ่ม + กำไร/ขาดทุนรายตัว ---------- */}
-          <div className="cv-auto grid gap-4 xl:grid-cols-2">
+          <div className="cv-auto grid gap-4 lg:grid-cols-2">
             <Section title="สัดส่วนพอร์ตตามกลุ่ม" subtitle={`${groups.length} กลุ่ม · รวม ${fmt0(summary.totalValue)} บาท`}>
               <div className="grid items-center gap-6 sm:grid-cols-[minmax(0,13rem)_1fr]">
                 <div className="h-52">

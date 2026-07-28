@@ -153,7 +153,7 @@ export default function Dashboard() {
       ) : (
         <div className="space-y-5">
           {/* ---------- KPI ---------- */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard
               label="ความมั่งคั่งสุทธิ"
               value={d.netWorth}
@@ -208,7 +208,7 @@ export default function Dashboard() {
           {!d.isFutureYear && <HealthChecklist checks={healthChecks} />}
 
           {/* ---------- กราฟหลัก ---------- */}
-          <div className="cv-auto grid gap-4 xl:grid-cols-2">
+          <div className="cv-auto grid gap-4 lg:grid-cols-2">
             <ChartCard
               title="รายรับ / เงินออม / รายจ่าย รายเดือน"
               subtitle={`ปี ${year}`}
@@ -273,7 +273,7 @@ export default function Dashboard() {
           </div>
 
           {/* ---------- สัดส่วน ---------- */}
-          <div className="cv-auto grid gap-4 xl:grid-cols-2">
+          <div className="cv-auto grid gap-4 lg:grid-cols-2">
             <ChartCard
               title="สัดส่วนเงินออม/ลงทุน"
               subtitle={

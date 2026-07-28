@@ -73,7 +73,7 @@ export default function Savings() {
         </Section>
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard label="ยอดยกมาต้นปี" value={totals.opening} tone="neutral" />
             <StatCard label="ใส่เพิ่มปีนี้" value={totals.added} tone="saving" hint={isFuture ? 'ตามที่วางแผนไว้' : 'ถึงเดือนปัจจุบัน'} />
             <StatCard label={isFuture ? 'คาดว่าจะมี' : 'ยอด ณ ปัจจุบัน'} value={totals.current} tone="brand" />

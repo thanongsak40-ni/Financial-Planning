@@ -126,7 +126,7 @@ export default function Milestone() {
         </div>
 
         {/* ---------- ตัวเลขสำคัญ ---------- */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatCard label="สะสมแล้วตอนนี้" value={m.currentAccum} tone="saving" />
           <StatCard label="ยังขาดอีก" value={m.needRemain} tone={m.needRemain > 0 ? 'expense' : 'income'} />
           <StatCard label="เหลือเวลา" value={fmtDuration(m.monthsLeft)} unit="" tone="neutral" hint={`${m.monthsLeft} เดือน`} />

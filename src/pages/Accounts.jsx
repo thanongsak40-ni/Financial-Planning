@@ -87,7 +87,7 @@ export default function Accounts() {
         </Section>
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard label="ยอดรวมทุกบัญชี" value={total} tone="brand" icon={Wallet} />
             <StatCard label="จำนวนบัญชี" value={rows.length} unit="" tone="neutral" hint={`${byKind.length} ประเภท`} />
             <StatCard
