@@ -599,7 +599,7 @@ function MobileRow({ cat, value, status, tone, onSave, onCycleStatus, onEdit }) 
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-        className={`num w-28 shrink-0 rounded-lg bg-transparent px-2 py-2 text-right text-base transition focus:bg-slate-50 focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:focus:bg-slate-800 ${
+        className={`num w-28 shrink-0 rounded-lg bg-slate-50 px-2 py-2 text-right text-base transition focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:bg-slate-800/40 dark:focus:bg-slate-950 ${
           value ? tone : 'text-slate-300 dark:text-slate-700'
         }`}
       />

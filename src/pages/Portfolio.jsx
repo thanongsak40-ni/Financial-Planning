@@ -511,7 +511,7 @@ function PriceCell({ value, onSave, rowIndex, decimals }) {
         else if (e.key === 'ArrowUp') { e.preventDefault(); e.target.blur(); move(-1) }
         else if (e.key === 'ArrowDown') { e.preventDefault(); e.target.blur(); move(1) }
       }}
-      className="num w-full bg-transparent px-2 py-1.5 text-right transition hover:bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:ring-inset focus:outline-none dark:hover:bg-slate-800/60 dark:focus:bg-slate-950"
+      className="num w-full bg-transparent px-2 py-1.5 text-right underline decoration-slate-300 decoration-dashed underline-offset-4 transition hover:bg-slate-50 focus:bg-white focus:no-underline focus:ring-2 focus:ring-indigo-500 focus:ring-inset focus:outline-none dark:decoration-slate-600 dark:hover:bg-slate-800/60 dark:focus:bg-slate-950"
     />
   )
 }
