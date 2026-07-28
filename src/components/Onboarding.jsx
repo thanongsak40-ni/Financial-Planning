@@ -59,7 +59,7 @@ export function useOnboardingSteps() {
   return { steps, done, total: steps.length, complete: done === steps.length }
 }
 
-export default function Onboarding() {
+export default function Onboarding({ className = '' }) {
   const { data } = useFinanceData()
   const setSetting = useSetSetting()
   const state = useOnboardingSteps()
@@ -68,7 +68,7 @@ export default function Onboarding() {
   if (data?.settings?.onboarding_dismissed === 'true') return null
 
   return (
-    <section className="card-pad border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-transparent dark:border-indigo-900 dark:from-indigo-950/40">
+    <section className={`card-pad border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-transparent dark:border-indigo-900 dark:from-indigo-950/40 ${className}`}>
       <header className="mb-3 flex items-start justify-between gap-2">
         <div>
           <h2 className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">

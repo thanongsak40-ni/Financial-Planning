@@ -85,6 +85,10 @@ export default function Settings() {
       goals: data.goals,
       tax_items: data.taxItems,
       recurring: data.recurring,
+      accounts: data.accounts,
+      account_snapshots: data.accountSnapshots,
+      portfolio_snapshots: data.snapshots,
+      net_worth_snapshots: data.netWorthSnapshots,
       settings: data.settings,
     }
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
@@ -265,6 +269,7 @@ export default function Settings() {
           entries: data.entries.length,
           portfolio: data.portfolio.length,
           goals: data.goals.length,
+          accounts: (data.accounts ?? []).length,
         }}
         busy={wipe.isPending}
         onClose={() => setWipeModal(false)}
@@ -323,6 +328,7 @@ function WipeModal({ open, counts, busy, onClose, onConfirm, onExport }) {
               ['ตัวเลขรายเดือน', counts.entries],
               ['สินทรัพย์ในพอร์ต', counts.portfolio],
               ['เป้าหมาย', counts.goals],
+              ['บัญชีธนาคาร', counts.accounts],
             ].map(([label, n]) => (
               <li key={label} className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60">
                 <span className="block text-xs text-slate-500 dark:text-slate-400">{label}</span>

@@ -313,23 +313,26 @@ export function Sparkline({ values = [], color, width = 92, height = 26 }) {
   }
   const min = Math.min(...pts)
   const max = Math.max(...pts)
-  const span = max - min || 1
+  const span = max - min
   const step = width / (values.length - 1)
+  // ยอดคงที่ (span = 0) วาดเส้นกลางกล่อง ไม่ใช่ติดขอบล่างซึ่งอ่านเหมือนกำลังตก
+  const yOf = (v) => {
+    const norm = span === 0 ? 0.5 : (v - min) / span
+    return height - norm * (height - 4) - 2
+  }
 
   let d = ''
   let started = false
   values.forEach((v, i) => {
     if (v === null || v === undefined) return
-    const x = i * step
-    const y = height - ((v - min) / span) * (height - 4) - 2
-    d += `${started ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`
+    d += `${started ? 'L' : 'M'}${(i * step).toFixed(1)},${yOf(v).toFixed(1)}`
     started = true
   })
 
   const lastIdx = values.map((v, i) => (v === null || v === undefined ? -1 : i)).filter((i) => i >= 0).pop()
   const lastVal = values[lastIdx]
   const lastX = lastIdx * step
-  const lastY = height - ((lastVal - min) / span) * (height - 4) - 2
+  const lastY = yOf(lastVal)
 
   return (
     <svg width={width} height={height} className="overflow-visible" aria-hidden>

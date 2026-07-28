@@ -180,7 +180,7 @@ export default function Grid() {
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-20">
+            <thead className="sticky top-14 z-20">
               <tr className="border-b border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800">
                 <th className="th sticky left-0 z-10 min-w-52 bg-slate-100 text-left dark:bg-slate-800">รายการ</th>
                 {MONTHS.map((m, i) => (

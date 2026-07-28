@@ -420,10 +420,20 @@ export function useSetSetting() {
 export function useWipeMyData() {
   return useFinanceMutation(async (_vars, userId) => {
     // ลบ categories จะ cascade ลบ entries/carry_over/recurring ที่อ้างถึงให้เอง
-    const tables = ['entries', 'month_notes', 'carry_over', 'recurring', 'portfolio', 'assets', 'goals', 'tax_items', 'categories', 'settings']
+    // เรียงลูกก่อนแม่ (snapshots ก่อนตารางที่มันอ้างถึง) — และต้องครบทุกตาราง
+    // เคยพลาด: เพิ่มตารางใหม่แล้วลืมเพิ่มที่นี่ ทำให้ 'ล้างทั้งหมด' ลบไม่หมดจริง
+    const tables = [
+      'entries', 'month_notes', 'carry_over', 'recurring',
+      'account_snapshots', 'accounts',
+      'portfolio_snapshots', 'net_worth_snapshots',
+      'portfolio', 'assets', 'goals', 'tax_items', 'categories', 'settings',
+    ]
     for (const t of tables) {
       const { error } = await supabase.from(t).delete().eq('user_id', userId)
-      if (error) throw new Error(`${t}: ${error.message}`)
+      // ตารางที่ยังไม่ได้รัน migration ให้ข้าม ไม่ใช่ล้มทั้งกระบวนการ
+      if (error && !/does not exist|not find the table/i.test(error.message)) {
+        throw new Error(`${t}: ${error.message}`)
+      }
     }
     return true
   })

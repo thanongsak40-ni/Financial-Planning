@@ -54,7 +54,6 @@ export default function App() {
                   <Route path="portfolio" element={<Portfolio />} />
                   <Route path="balance" element={<Balance />} />
                   <Route path="accounts" element={<Accounts />} />
-                  <Route path="privacy" element={<Privacy />} />
                   <Route path="goals" element={<Goals />} />
                   <Route path="tax" element={<Tax />} />
                   <Route path="settings" element={<Settings />} />

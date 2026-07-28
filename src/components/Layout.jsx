@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Rocket, NotebookPen, PiggyBank,
@@ -44,7 +44,24 @@ export default function Layout({ children }) {
   const location = useLocation()
   const toast = useToast()
 
-  useEffect(() => setOpen(false), [location.pathname])
+  // เมนูโปรไฟล์เปิดด้วยคลิก ไม่ใช่ hover — จอสัมผัสไม่มี hover
+  // และเมนู 'ตั้งค่า' อยู่ในนี้ ถ้าเปิดไม่ได้บนมือถือจะเข้าตั้งค่าไม่ได้เลย
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [menuOpen])
+
+  useEffect(() => {
+    setOpen(false)
+    setMenuOpen(false)
+  }, [location.pathname])
 
   const name = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้'
   const initial = name.charAt(0).toUpperCase()
@@ -138,14 +155,23 @@ export default function Layout({ children }) {
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
-            <div className="group relative">
-              <button className="flex cursor-pointer items-center gap-2 rounded-lg py-1 pr-1 pl-1.5 transition hover:bg-slate-100 dark:hover:bg-slate-800">
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                className="flex cursor-pointer items-center gap-2 rounded-lg py-1 pr-1 pl-1.5 transition hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
                 <span className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-sm font-semibold text-white">
                   {initial}
                 </span>
                 <span className="hidden max-w-28 truncate text-sm font-medium sm:block">{name}</span>
               </button>
-              <div className="invisible absolute right-0 z-30 mt-1 w-56 origin-top-right rounded-xl border border-slate-200 bg-white p-1.5 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 dark:border-slate-800 dark:bg-slate-900">
+              <div
+                className={`absolute right-0 z-30 mt-1 w-56 origin-top-right rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl transition dark:border-slate-800 dark:bg-slate-900 ${
+                  menuOpen ? 'visible opacity-100' : 'invisible opacity-0'
+                }`}
+              >
                 <div className="border-b border-slate-100 px-2.5 py-2 dark:border-slate-800">
                   <p className="truncate text-sm font-medium">{name}</p>
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">{user?.email}</p>

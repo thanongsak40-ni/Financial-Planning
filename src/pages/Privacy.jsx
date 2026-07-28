@@ -103,12 +103,10 @@ export default function Privacy() {
   ]
 
   return (
-    <div className={user ? '' : 'mx-auto min-h-full max-w-3xl px-5 py-10'}>
-      {!user && (
-        <Link to="/login" className="btn-ghost mb-4 -ml-2">
-          <ArrowLeft size={16} /> กลับไปหน้าเข้าสู่ระบบ
-        </Link>
-      )}
+    <div className="mx-auto min-h-full max-w-3xl px-5 py-10">
+      <Link to={user ? '/' : '/login'} className="btn-ghost mb-4 -ml-2">
+        <ArrowLeft size={16} /> {user ? 'กลับไปหน้าภาพรวม' : 'กลับไปหน้าเข้าสู่ระบบ'}
+      </Link>
 
       <div className="mb-6">
         <h1 className="text-xl font-bold text-slate-900 sm:text-2xl dark:text-slate-50">ความเป็นส่วนตัวของข้อมูล</h1>

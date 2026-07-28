@@ -75,9 +75,7 @@ export default function Dashboard() {
         }
       />
 
-      <div className="mb-5">
-        <Onboarding />
-      </div>
+      <Onboarding className="mb-5" />
 
       {noData ? (
         <Section>
