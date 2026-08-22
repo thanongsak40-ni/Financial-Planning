@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, useRef, useCallback } from 'react'
+import { Fragment, useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import {
   Plus, Pencil, StickyNote, Wand2, ChevronDown, ChevronRight, ChevronLeft, Trash2,
 } from 'lucide-react'
@@ -551,10 +551,7 @@ export default function Grid() {
         onSave={(month, note) =>
           saveNote.mutate(
             { year, month, note },
-            {
-              onSuccess: () => { toast.success('บันทึกหมายเหตุแล้ว'); setNoteModal(null) },
-              onError: (e) => toast.error(e.message),
-            },
+            { onError: (e) => toast.error(`บันทึกหมายเหตุไม่สำเร็จ: ${e.message}`) },
           )
         }
       />
@@ -814,37 +811,71 @@ function FillModal({ state, year, onClose, onFill }) {
   )
 }
 
+/**
+ * หมายเหตุประจำเดือน — บันทึกเองเหมือนช่องตัวเลข
+ *
+ * เดิมบันทึกตอนกดปุ่มอย่างเดียว ถ้าพิมพ์ยาว ๆ แล้วปิดกล่องด้วยการแตะพื้นหลัง
+ * หรือปุ่มกากบาท ข้อความหายทั้งหมดโดยไม่มีอะไรเตือน และบนมือถือการแตะปุ่ม
+ * บันทึกก็มีจังหวะพลาดตอนคีย์บอร์ดยุบแล้วกล่องขยับ
+ */
 function NoteModal({ state, onClose, onSave }) {
   const [text, setText] = useState('')
   const last = useRef(null)
+  const textRef = useRef('')     // ข้อความล่าสุดที่พิมพ์
+  const savedRef = useRef('')    // ข้อความล่าสุดที่บันทึกลงฐานข้อมูลแล้ว
+  const monthRef = useRef(null)
+  const saveRef = useRef(onSave)
+  saveRef.current = onSave
+
   if (state && state !== last.current) {
     last.current = state
-    setText(state.note || '')
+    const initial = state.note || ''
+    setText(initial)
+    textRef.current = initial
+    savedRef.current = initial
+    monthRef.current = state.month
   }
+
+  const flush = useCallback(() => {
+    if (monthRef.current == null || textRef.current === savedRef.current) return
+    savedRef.current = textRef.current
+    saveRef.current(monthRef.current, textRef.current)
+  }, [])
+
+  // หยุดพิมพ์แล้วบันทึกเอง ไม่ต้องรอกดปุ่ม
+  useEffect(() => {
+    if (!state) return
+    const t = setTimeout(flush, 700)
+    return () => clearTimeout(t)
+  }, [text, state, flush])
+
   if (!state) return null
+
+  // ปิดกล่องทางไหนก็ได้ (ปุ่มเสร็จแล้ว กากบาท แตะพื้นหลัง Esc) ต้องบันทึกก่อนเสมอ
+  const close = () => {
+    flush()
+    onClose()
+  }
 
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={close}
       title={`หมายเหตุเดือน${MONTHS_FULL[state.month - 1]}`}
-      footer={
-        <>
-          <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
-          <button onClick={() => onSave(state.month, text)} className="btn-primary">บันทึก</button>
-        </>
-      }
+      footer={<button onClick={close} className="btn-primary">เสร็จแล้ว</button>}
     >
       <textarea
         autoFocus
         rows={5}
-        className="input resize-y"
+        className="input resize-y text-base"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => { textRef.current = e.target.value; setText(e.target.value) }}
+        onBlur={flush}
         placeholder="เช่น ยืมเงินเพื่อน 2,000 คืนสิ้นเดือน / ได้โบนัสพิเศษ / เดือนนี้จ่ายค่าเทอม"
       />
       <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-        ไว้จดเหตุการณ์ที่ตัวเลขอย่างเดียวบอกไม่ได้ — ลบข้อความทั้งหมดแล้วกดบันทึกเพื่อลบหมายเหตุ
+        ไว้จดเหตุการณ์ที่ตัวเลขอย่างเดียวบอกไม่ได้ — บันทึกให้เองเมื่อหยุดพิมพ์
+        ดูสถานะได้ที่แถบบน · ลบข้อความทั้งหมดคือลบหมายเหตุ
       </p>
     </Modal>
   )
