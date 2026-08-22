@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, NotebookPen, PiggyBank, TrendingUp, LayoutGrid,
-  Rocket, Wallet, Landmark, CheckSquare, Receipt, Settings as SettingsIcon, X,
+  Rocket, Wallet, Landmark, CheckSquare, Receipt, Settings as SettingsIcon, X, Smile,
 } from 'lucide-react'
 
 /**
@@ -24,6 +24,7 @@ const MORE = [
   { to: '/accounts', icon: Wallet, label: 'บัญชีธนาคาร' },
   { to: '/balance', icon: Landmark, label: 'ความมั่งคั่งสุทธิ' },
   { to: '/goals', icon: CheckSquare, label: 'เป้าหมายปี' },
+  { to: '/joy', icon: Smile, label: 'คลังความสุข' },
   { to: '/tax', icon: Receipt, label: 'แผนภาษี' },
   { to: '/settings', icon: SettingsIcon, label: 'ตั้งค่า' },
 ]

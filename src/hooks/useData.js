@@ -15,6 +15,7 @@ const TABLES = [
   ['portfolio', 'portfolio', {}],
   ['assets', 'assets', {}],
   ['goals', 'goals', { order: ['sort_order', { ascending: true }] }],
+  ['joys', 'joys', { order: ['sort_order', { ascending: true }], optional: true }],
   ['taxItems', 'tax_items', {}],
   ['recurring', 'recurring', {}],
   ['accounts', 'accounts', { order: ['sort_order', { ascending: true }], optional: true }],
@@ -433,7 +434,7 @@ export function useWipeMyData() {
       'entries', 'month_notes', 'carry_over', 'recurring',
       'account_snapshots', 'accounts',
       'portfolio_snapshots', 'net_worth_snapshots',
-      'portfolio', 'assets', 'goals', 'tax_items', 'categories', 'settings',
+      'portfolio', 'assets', 'goals', 'joys', 'tax_items', 'categories', 'settings',
     ]
     for (const t of tables) {
       const { error } = await supabase.from(t).delete().eq('user_id', userId)
