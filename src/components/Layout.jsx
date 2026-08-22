@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useIsMutating } from '@tanstack/react-query'
 import {
   LayoutDashboard, Rocket, NotebookPen, PiggyBank,
   TrendingUp, Landmark, CheckSquare, Receipt, Settings as SettingsIcon,
-  Wallet, Sun, Moon, LogOut,
+  Wallet, Sun, Moon, LogOut, Loader2, Check,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useYear } from '../hooks/useYear'
@@ -76,6 +77,42 @@ function RouteBody({ pathname, children }) {
   }, [pathname])
 
   return shown === pathname ? children : <PageSkeleton />
+}
+
+/**
+ * ไฟบอกสถานะบันทึก — ช่องกรอกตัวเลขบันทึกให้เองเมื่อหยุดพิมพ์
+ * ถ้าไม่มีอะไรบอก ผู้ใช้จะไม่มีทางรู้ว่าที่พิมพ์ไปลงฐานข้อมูลแล้วหรือยัง
+ */
+function SaveStatus() {
+  const busy = useIsMutating()
+  const [justSaved, setJustSaved] = useState(false)
+  const prev = useRef(0)
+
+  useEffect(() => {
+    const was = prev.current
+    prev.current = busy
+    if (was > 0 && busy === 0) {
+      setJustSaved(true)
+      const t = setTimeout(() => setJustSaved(false), 1800)
+      return () => clearTimeout(t)
+    }
+  }, [busy])
+
+  if (!busy && !justSaved) return null
+
+  return (
+    <span
+      className={`chip ${
+        busy
+          ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+          : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+      }`}
+      aria-live="polite"
+    >
+      {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+      <span className="hidden sm:inline">{busy ? 'กำลังบันทึก' : 'บันทึกแล้ว'}</span>
+    </span>
+  )
 }
 
 function useTheme() {
@@ -178,6 +215,7 @@ export default function Layout({ children }) {
           </span>
 
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+            <SaveStatus />
             <label className="flex items-center gap-1.5 text-sm">
               <span className="hidden text-slate-500 sm:inline dark:text-slate-400">ปี</span>
               <select

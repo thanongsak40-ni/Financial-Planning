@@ -6,6 +6,7 @@ import {
 } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useIsDesktop } from '../hooks/useIsDesktop'
+import { useNumberField } from '../hooks/useNumberField'
 import { useToast } from '../components/Toast'
 import {
   PageHeader, Spinner, ErrorBox, Section, Empty, StatCard,
@@ -516,14 +517,7 @@ export default function Portfolio() {
 
 /** ช่องแก้ราคาในตาราง — ลูกศรขึ้นลงเลื่อนแถว กด Enter บันทึกแล้วลงแถวถัดไป */
 function PriceCell({ value, onSave, rowIndex, decimals }) {
-  const [text, setText] = useState('')
-  const [editing, setEditing] = useState(false)
-
-  const commit = () => {
-    setEditing(false)
-    const num = Number(String(text).replace(/[, ฿]/g, '')) || 0
-    if (num !== (Number(value) || 0)) onSave(num)
-  }
+  const { editing, text, onFocus, onChange, onBlur, cancel } = useNumberField({ value, onSave })
 
   const move = (d) => {
     const next = document.querySelector(`[data-price="${rowIndex + d}"]`)
@@ -535,12 +529,12 @@ function PriceCell({ value, onSave, rowIndex, decimals }) {
       data-price={rowIndex}
       inputMode="decimal"
       value={editing ? text : fmtExact(value, decimals ? 12 : 2)}
-      onFocus={(e) => { setEditing(true); setText(value ? String(value) : ''); requestAnimationFrame(() => e.target.select()) }}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
+      onFocus={onFocus}
+      onChange={onChange}
+      onBlur={onBlur}
       onKeyDown={(e) => {
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); move(1) }
-        else if (e.key === 'Escape') { setEditing(false); setText(''); e.target.blur() }
+        else if (e.key === 'Escape') { cancel(); e.target.blur() }
         else if (e.key === 'ArrowUp') { e.preventDefault(); e.target.blur(); move(-1) }
         else if (e.key === 'ArrowDown') { e.preventDefault(); e.target.blur(); move(1) }
       }}
@@ -551,22 +545,15 @@ function PriceCell({ value, onSave, rowIndex, decimals }) {
 
 /** ช่องแก้ราคาบนการ์ดจอเล็ก — ฟอนต์ 16px กัน iOS ซูมหน้าจอเองตอนแตะ */
 function MobilePriceInput({ value, decimals, onSave }) {
-  const [text, setText] = useState('')
-  const [active, setActive] = useState(false)
-
-  const commit = () => {
-    setActive(false)
-    const num = Number(String(text).replace(/[, ฿]/g, '')) || 0
-    if (num !== (Number(value) || 0)) onSave(num)
-  }
+  const { editing, text, onFocus, onChange, onBlur } = useNumberField({ value, onSave })
 
   return (
     <input
       inputMode="decimal"
-      value={active ? text : fmtExact(value, decimals ? 12 : 2)}
-      onFocus={(e) => { setActive(true); setText(value ? String(value) : ''); requestAnimationFrame(() => e.target.select()) }}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
+      value={editing ? text : fmtExact(value, decimals ? 12 : 2)}
+      onFocus={onFocus}
+      onChange={onChange}
+      onBlur={onBlur}
       onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
       className="num w-32 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-right text-base transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none dark:border-slate-700 dark:bg-slate-950"
     />

@@ -5,6 +5,7 @@ import {
 import { useFinanceData, useSaveEntry, useFillRow, useSaveCategory, useDeleteCategory, useSaveNote, useMonthNotes } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
 import { useIsDesktop } from '../hooks/useIsDesktop'
+import { useNumberField } from '../hooks/useNumberField'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, Modal, Field, MoneyInput, ConfirmButton, Money } from '../components/ui'
 import { MONTHS, MONTHS_FULL, SECTIONS, SECTION_LABEL, SECTION_SUM_LABEL, yearGrid, priorYearsByCat, LIQUIDITY } from '../lib/calc'
@@ -46,14 +47,7 @@ const STATUS_LABEL = { done: 'เสร็จแล้ว', partial: 'บาง�
 
 /** ช่องกรอกตัวเลข 1 ช่อง (รายการ × เดือน) */
 function Cell({ value, status, onSave, onCycleStatus, showStatus, isCurrentMonth, coord, tone }) {
-  const [text, setText] = useState('')
-  const [editing, setEditing] = useState(false)
-
-  const commit = () => {
-    setEditing(false)
-    const num = Number(String(text).replace(/[, ฿]/g, '')) || 0
-    if (num !== (Number(value) || 0)) onSave(num)
-  }
+  const { editing, text, onFocus, onChange, onBlur, cancel } = useNumberField({ value, onSave })
 
   const move = (dr, dc) => {
     const next = document.querySelector(`[data-cell="${coord[0] + dr}-${coord[1] + dc}"]`)
@@ -65,7 +59,7 @@ function Cell({ value, status, onSave, onCycleStatus, showStatus, isCurrentMonth
 
   const onKeyDown = (e) => {
     if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); move(1, 0) }
-    else if (e.key === 'Escape') { setEditing(false); setText(''); e.target.blur() }
+    else if (e.key === 'Escape') { cancel(); e.target.blur() }
     else if (e.key === 'ArrowUp' && !e.shiftKey) { e.preventDefault(); e.target.blur(); move(-1, 0) }
     else if (e.key === 'ArrowDown' && !e.shiftKey) { e.preventDefault(); e.target.blur(); move(1, 0) }
     else if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) { e.target.blur(); move(0, -1) }
@@ -81,9 +75,9 @@ function Cell({ value, status, onSave, onCycleStatus, showStatus, isCurrentMonth
         data-cell={`${coord[0]}-${coord[1]}`}
         inputMode="decimal"
         value={display}
-        onFocus={(e) => { setEditing(true); setText(value ? String(value) : ''); requestAnimationFrame(() => e.target.select()) }}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
+        onFocus={onFocus}
+        onChange={onChange}
+        onBlur={onBlur}
         onKeyDown={onKeyDown}
         className={`num w-full min-w-[4.5rem] bg-transparent px-1.5 py-1.5 text-right text-[13px] transition focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:ring-inset focus:outline-none dark:focus:bg-slate-950 ${
           empty ? 'text-slate-300 dark:text-slate-700' : tone
@@ -573,14 +567,7 @@ export default function Grid() {
 
 /** แถวกรอกบนจอเล็ก — ฟอนต์ 16px กัน iOS ซูมหน้าจอเองตอนแตะช่องกรอก */
 function MobileRow({ cat, value, status, tone, onSave, onCycleStatus, onEdit }) {
-  const [text, setText] = useState('')
-  const [editing, setEditing] = useState(false)
-
-  const commit = () => {
-    setEditing(false)
-    const num = Number(String(text).replace(/[, ฿]/g, '')) || 0
-    if (num !== (Number(value) || 0)) onSave(num)
-  }
+  const { editing, text, onFocus, onChange, onBlur } = useNumberField({ value, onSave })
 
   return (
     <div className="flex items-center gap-0.5 pr-1">
@@ -603,9 +590,9 @@ function MobileRow({ cat, value, status, tone, onSave, onCycleStatus, onEdit }) 
         inputMode="decimal"
         value={editing ? text : fmt(value)}
         placeholder="0"
-        onFocus={(e) => { setEditing(true); setText(value ? String(value) : ''); requestAnimationFrame(() => e.target.select()) }}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
+        onFocus={onFocus}
+        onChange={onChange}
+        onBlur={onBlur}
         onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
         className={`num w-28 shrink-0 rounded-lg bg-slate-50 px-2 py-2 text-right text-base transition focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:bg-slate-800/40 dark:focus:bg-slate-950 ${
           value ? tone : 'text-slate-300 dark:text-slate-700'

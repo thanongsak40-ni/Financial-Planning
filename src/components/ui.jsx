@@ -227,6 +227,12 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
           <footer
             className="flex shrink-0 justify-end gap-2 border-t border-slate-200 px-5 py-3.5 dark:border-slate-800"
             style={{ paddingBottom: footerPad }}
+            /* กันปุ่มแย่งโฟกัสจากช่องกรอก — ถ้าปล่อยให้ช่องหลุดโฟกัส
+               คีย์บอร์ดจะยุบ กล่องขยายขึ้น ปุ่มเลื่อนหนีนิ้วระหว่างที่กด
+               แตะครั้งแรกจึงไม่โดนปุ่ม ต้องแตะซ้ำ */
+            onMouseDownCapture={(e) => {
+              if (e.target.closest?.('button')) e.preventDefault()
+            }}
           >
             {footer}
           </footer>
@@ -293,7 +299,13 @@ export function MoneyInput({ value, onChange, className = '', ...props }) {
         setText(value ? String(value) : '')
         requestAnimationFrame(() => e.target.select())
       }}
-      onChange={(e) => setText(e.target.value)}
+      onChange={(e) => {
+        setText(e.target.value)
+        // ส่งค่าให้ทันทีทุกตัวอักษร — เดิมส่งตอน blur เท่านั้น ซึ่งบนมือถือ
+        // การแตะปุ่ม 'บันทึก' บางครั้งไม่ทำให้เกิด blur ก่อน กล่องจึงบันทึก
+        // ค่าเก่าทับ เหมือนกับที่พิมพ์ไปไม่มีผล
+        onChange?.(Number(String(e.target.value).replace(/[, ฿]/g, '')) || 0)
+      }}
       onBlur={() => {
         setFocused(false)
         const num = Number(String(text).replace(/[, ฿]/g, '')) || 0
