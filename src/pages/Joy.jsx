@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Pencil, Smile, Users, User, Clock, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Smile, Users, User, Clock, Trash2, Database } from 'lucide-react'
 import { useFinanceData, useUpsertRow, useDeleteRow } from '../hooks/useData'
 import { useToast } from '../components/Toast'
 import {
@@ -37,6 +37,8 @@ export default function Joy() {
   const [filter, setFilter] = useState('all')
 
   const joys = data?.joys ?? []
+  // ยังไม่ได้รันไฟล์ SQL — ตารางยังไม่มี กดบันทึกไปก็ขึ้น error ดิบของฐานข้อมูล
+  const needsSetup = data?.missingTables?.includes('joys')
 
   // จัดกลุ่มตามความรู้สึก แต่ละกลุ่มเรียงจากถูกไปแพง
   const groups = useMemo(() => {
@@ -89,12 +91,35 @@ export default function Joy() {
         title="คลังความสุข"
         subtitle="สิ่งที่ทำแล้วมีความสุข จัดกลุ่มตามความรู้สึกที่ได้ เรียงจากถูกไปแพง — วันไหนทำอันแพงไม่ได้ ก็เลื่อนขึ้นไปหยิบอันบน ๆ ในกลุ่มเดียวกัน"
       >
-        <button onClick={() => setEditing({})} className="btn-primary">
+        <button onClick={() => setEditing({})} disabled={needsSetup} className="btn-primary">
           <Plus size={16} /> เพิ่มความสุข
         </button>
       </PageHeader>
 
-      {joys.length === 0 ? (
+      {needsSetup ? (
+        <Section
+          title="ต้องเปิดใช้งานก่อนหนึ่งครั้ง"
+          subtitle="คลังความสุขเก็บข้อมูลในตารางใหม่ ซึ่งยังไม่มีในฐานข้อมูลของคุณ"
+        >
+          <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+            <Database size={18} className="mt-0.5 shrink-0" />
+            <div className="min-w-0 space-y-2">
+              <p className="font-medium">ทำครั้งเดียวจบ ใช้เวลาไม่ถึงนาที</p>
+              <ol className="list-inside list-decimal space-y-1">
+                <li>เปิด Supabase → เมนู SQL Editor</li>
+                <li>
+                  เปิดไฟล์ <code className="rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-900/60">supabase/migrations/008_joy_bank.sql</code> ในโปรเจกต์
+                </li>
+                <li>คัดลอกทั้งไฟล์ไปวางแล้วกด Run</li>
+                <li>กลับมาที่หน้านี้แล้วรีเฟรช</li>
+              </ol>
+              <p className="text-xs opacity-80">
+                ข้อมูลของคุณแยกรายผู้ใช้ด้วย RLS เหมือนตารางอื่นทั้งหมด คนอื่นเห็นของคุณไม่ได้
+              </p>
+            </div>
+          </div>
+        </Section>
+      ) : joys.length === 0 ? (
         <Empty
           icon={Smile}
           title="ยังไม่มีอะไรในคลัง"

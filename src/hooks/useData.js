@@ -36,10 +36,14 @@ async function fetchAll(userId) {
   queries.push(supabase.from('settings').select('*').eq('user_id', userId))
 
   const results = await Promise.all(queries)
+  // ตารางที่ยังไม่ได้รัน migration — จำไว้เพื่อให้หน้าที่ใช้มันบอกผู้ใช้ได้ตรง ๆ
+  // ว่าต้องรัน SQL ก่อน แทนที่จะปล่อยให้ error ดิบของฐานข้อมูลเด้งตอนกดบันทึก
+  const missingTables = []
   results.forEach((r, i) => {
     if (!r.error) return
     if (TABLES[i]?.[2]?.optional) {
       console.warn(`[finance-planner] ข้ามตาราง ${TABLES[i][1]}: ${r.error.message}`)
+      missingTables.push(TABLES[i][0])
       r.data = []
       r.error = null
       return
@@ -47,7 +51,7 @@ async function fetchAll(userId) {
     throw new Error(r.error.message)
   })
 
-  const out = {}
+  const out = { missingTables }
   TABLES.forEach(([key], i) => {
     out[key] = results[i].data ?? []
   })
