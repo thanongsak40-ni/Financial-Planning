@@ -210,6 +210,61 @@ export function useUpsertRow(table) {
   })
 }
 
+/**
+ * บันทึกรายการเงินให้ยืมพร้อมงวดทั้งหมดในครั้งเดียว
+ *
+ * งวดที่ยังอยู่จะถูก "แก้" ไม่ใช่ลบแล้วสร้างใหม่ — วันที่ได้รับคืนที่ติ๊กไว้
+ * จึงไม่หายตอนไปแก้ยอดงวด
+ *
+ * installment_no ของแถวเดิมไม่เปลี่ยนเลย เพราะมี unique (loan_id, installment_no)
+ * ถ้าไล่เลขใหม่ทุกครั้งจะชนกันเองตอนลบงวดกลาง ๆ
+ */
+export function useSaveLoan() {
+  return useFinanceMutation(async ({ id, loan, rows = [], removedIds = [] }, userId) => {
+    let loanId = id
+    if (loanId) {
+      unwrap(await supabase.from('loans').update(loan).match({ id: loanId, user_id: userId }).select())
+    } else {
+      const created = unwrap(await supabase.from('loans').insert({ ...loan, user_id: userId }).select())
+      loanId = created?.[0]?.id
+      if (!loanId) throw new Error('สร้างรายการไม่สำเร็จ')
+    }
+
+    if (removedIds.length) {
+      unwrap(await supabase.from('loan_payments').delete().in('id', removedIds).eq('user_id', userId))
+    }
+
+    for (const r of rows.filter((r) => r.id)) {
+      unwrap(
+        await supabase
+          .from('loan_payments')
+          .update({ amount: Number(r.amount) || 0, due_on: r.due || null })
+          .match({ id: r.id, user_id: userId }),
+      )
+    }
+
+    const fresh = rows.filter((r) => !r.id)
+    if (fresh.length) {
+      // เลขประจำแถวเดินต่อจากเลขสูงสุดที่มีอยู่ ไม่ใช้เลขที่แสดงบนหน้าจอ
+      const used = rows.filter((r) => r.id).map((r) => Number(r.key) || 0)
+      let next = (used.length ? Math.max(...used) : 0) + 1
+      unwrap(
+        await supabase.from('loan_payments').insert(
+          fresh.map((r) => ({
+            user_id: userId,
+            loan_id: loanId,
+            installment_no: next++,
+            amount: Number(r.amount) || 0,
+            due_on: r.due || null,
+            received_on: null,
+          })),
+        ),
+      )
+    }
+    return loanId
+  })
+}
+
 export function useDeleteRow(table) {
   return useFinanceMutation(async ({ id }, userId) =>
     unwrap(await supabase.from(table).delete().match({ id, user_id: userId })),

@@ -1,20 +1,19 @@
 import { useMemo, useState } from 'react'
-import { Plus, Pencil, HandCoins, Check, Trash2, Database, CalendarClock } from 'lucide-react'
-import { useFinanceData, useUpsertRow, useDeleteRow } from '../hooks/useData'
+import { Plus, Pencil, HandCoins, Check, Trash2, Database, CalendarClock, X } from 'lucide-react'
+import { useFinanceData, useSaveLoan, useUpsertRow, useDeleteRow } from '../hooks/useData'
 import { useToast } from '../components/Toast'
 import {
   PageHeader, Spinner, ErrorBox, Section, Empty, StatCard,
   Modal, Field, MoneyInput, ConfirmButton, ProgressBar, Tabs,
 } from '../components/ui'
-import { loanSchedule, MONTHS } from '../lib/calc'
+import { loanSchedule, addMonths, MONTHS } from '../lib/calc'
 import { fmt0, fmtDate } from '../lib/format'
 
 /**
  * เงินให้คนอื่นยืม — เมนูแยก ไม่ไหลไปรวมกับความมั่งคั่งสุทธิหรือหน้าอื่น
  * ตามที่ผู้ใช้กำหนดไว้ (แบบเดียวกับเมนูบัญชีธนาคาร)
  *
- * งวดที่ยังไม่ได้รับคือ "ไม่มีแถวใน loan_payments" ติ๊กแล้วจึงค่อยสร้างแถว
- * จะได้แก้จำนวนงวดทีหลังโดยไม่ต้องย้ายข้อมูลเดิม
+ * ยอดแต่ละงวดผู้ใช้กรอกเอง ระบบไม่หารให้ — งวดจริงมักไม่เท่ากันทุกงวด
  */
 
 const STATUS = {
@@ -39,22 +38,21 @@ function shortDue(iso) {
 
 export default function Loans() {
   const { data, isLoading, error, refetch } = useFinanceData()
-  const upsertLoan = useUpsertRow('loans')
+  const saveLoan = useSaveLoan()
   const removeLoan = useDeleteRow('loans')
-  const addPayment = useUpsertRow('loan_payments')
-  const removePayment = useDeleteRow('loan_payments')
+  const updateInstallment = useUpsertRow('loan_payments')
   const toast = useToast()
 
   const [editing, setEditing] = useState(null)
   const [filter, setFilter] = useState('open')
 
   const loans = data?.loans ?? []
-  const payments = data?.loanPayments ?? []
+  const installments = data?.loanPayments ?? []
   const needsSetup = data?.missingTables?.includes('loans')
 
   const rows = useMemo(() => {
     const byLoan = new Map()
-    for (const p of payments) {
+    for (const p of installments) {
       if (!byLoan.has(p.loan_id)) byLoan.set(p.loan_id, [])
       byLoan.get(p.loan_id).push(p)
     }
@@ -65,9 +63,9 @@ export default function Loans() {
         const rank = { overdue: 0, partial: 1, pending: 1, done: 2 }
         const d = rank[a.sched.status] - rank[b.sched.status]
         if (d) return d
-        return (a.sched.nextDue?.due ?? '9999') .localeCompare(b.sched.nextDue?.due ?? '9999')
+        return (a.sched.nextDue?.due ?? '9999').localeCompare(b.sched.nextDue?.due ?? '9999')
       })
-  }, [loans, payments])
+  }, [loans, installments])
 
   const stats = useMemo(() => {
     const open = rows.filter((r) => r.sched.status !== 'done')
@@ -89,18 +87,10 @@ export default function Loans() {
         : filter === 'done' ? rows.filter((r) => r.sched.status === 'done')
           : rows.filter((r) => r.sched.status !== 'done')
 
-  function togglePaid(loan, row) {
-    if (row.paid) {
-      removePayment.mutate({ id: row.payment.id }, { onError: (e) => toast.error(e.message) })
-      return
-    }
-    addPayment.mutate(
-      {
-        loan_id: loan.id,
-        installment_no: row.no,
-        amount: row.expected,
-        received_on: todayIso(),
-      },
+  /** ติ๊ก/ยกเลิกว่างวดนี้ได้รับคืนแล้ว — แตะเดียวจบ ไม่เปิดกล่อง */
+  function toggleReceived(row) {
+    updateInstallment.mutate(
+      { id: row.id, received_on: row.paid ? null : todayIso() },
       { onError: (e) => toast.error(`บันทึกไม่สำเร็จ: ${e.message}`) },
     )
   }
@@ -109,7 +99,7 @@ export default function Loans() {
     <>
       <PageHeader
         title="เงินให้ยืม"
-        subtitle="ให้ใครยืมไปเท่าไร แบ่งกี่งวด ได้คืนงวดไหนแล้ว — แยกจากเมนูอื่นทั้งหมด ไม่ไหลไปรวมกับความมั่งคั่งสุทธิ"
+        subtitle="ให้ใครยืมไปเท่าไร ตกลงคืนเป็นงวดไหนบ้าง ได้รับแล้วหรือยัง — แยกจากเมนูอื่นทั้งหมด ไม่ไหลไปรวมกับความมั่งคั่งสุทธิ"
       >
         <button onClick={() => setEditing({})} disabled={needsSetup} className="btn-primary">
           <Plus size={16} /> เพิ่มรายการ
@@ -140,7 +130,7 @@ export default function Loans() {
         <Empty
           icon={HandCoins}
           title="ยังไม่มีรายการเงินให้ยืม"
-          hint="เพิ่มไว้ตั้งแต่วันที่ให้ยืม จะได้ไม่ต้องมานั่งนึกทีหลังว่าใครยืมไปเท่าไร ตกลงกันไว้กี่งวด และคืนมาแล้วบ้างหรือยัง"
+          hint="เพิ่มไว้ตั้งแต่วันที่ให้ยืม จะได้ไม่ต้องมานั่งนึกทีหลังว่าใครยืมไปเท่าไร ตกลงกันไว้อย่างไร และคืนมาแล้วบ้างหรือยัง"
           action={
             <button onClick={() => setEditing({})} className="btn-primary">
               <Plus size={16} /> เพิ่มรายการแรก
@@ -188,9 +178,7 @@ export default function Loans() {
 
           {shown.length === 0 ? (
             <Section>
-              <p className="py-6 text-center text-sm text-slate-400 dark:text-slate-500">
-                ไม่มีรายการในกลุ่มนี้
-              </p>
+              <p className="py-6 text-center text-sm text-slate-400 dark:text-slate-500">ไม่มีรายการในกลุ่มนี้</p>
             </Section>
           ) : (
             shown.map(({ loan, sched }) => (
@@ -199,7 +187,7 @@ export default function Loans() {
                 loan={loan}
                 sched={sched}
                 onEdit={() => setEditing(loan)}
-                onToggle={(row) => togglePaid(loan, row)}
+                onToggle={toggleReceived}
               />
             ))
           )}
@@ -208,15 +196,13 @@ export default function Loans() {
 
       <LoanModal
         state={editing}
+        installments={installments}
         onClose={() => setEditing(null)}
-        onSave={(fields, id) =>
-          upsertLoan.mutate(
-            { id, ...fields },
-            {
-              onSuccess: () => { toast.success(id ? 'แก้ไขแล้ว' : 'เพิ่มรายการแล้ว'); setEditing(null) },
-              onError: (e) => toast.error(e.message),
-            },
-          )
+        onSave={(payload) =>
+          saveLoan.mutate(payload, {
+            onSuccess: () => { toast.success(payload.id ? 'แก้ไขแล้ว' : 'เพิ่มรายการแล้ว'); setEditing(null) },
+            onError: (e) => toast.error(e.message),
+          })
         }
         onDelete={(id) =>
           removeLoan.mutate(
@@ -247,7 +233,7 @@ function LoanCard({ loan, sched, onEdit, onToggle }) {
           <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
             <span className="num">คืนแล้ว {fmt0(sched.received)}</span>
             <span className="num">ค้าง {fmt0(sched.outstanding)}</span>
-            <span className="num">{sched.paidCount}/{sched.count} งวด</span>
+            {sched.count > 0 && <span className="num">{sched.paidCount}/{sched.count} งวด</span>}
             {loan.lent_on && <span>ให้ยืม {fmtDate(loan.lent_on)}</span>}
           </p>
         </div>
@@ -264,19 +250,31 @@ function LoanCard({ loan, sched, onEdit, onToggle }) {
       {sched.status !== 'done' && sched.nextDue?.due && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
           <CalendarClock size={13} className="shrink-0" />
-          งวดถัดไป {fmtDate(sched.nextDue.due)} · <span className="num">{fmt0(sched.nextDue.expected)}</span> บาท
+          งวดถัดไป {fmtDate(sched.nextDue.due)} · <span className="num">{fmt0(sched.nextDue.amount)}</span> บาท
         </p>
       )}
 
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        {sched.rows.map((r) => (
-          <InstallmentButton key={r.no} row={r} onToggle={() => onToggle(r)} />
-        ))}
-      </div>
-
-      {loan.note && (
-        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{loan.note}</p>
+      {sched.count === 0 ? (
+        <button onClick={onEdit} className="btn-outline mt-3 w-full">
+          <Plus size={15} /> ใส่งวดที่ตกลงกันไว้
+        </button>
+      ) : (
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {sched.rows.map((r) => (
+            <InstallmentButton key={r.id} row={r} onToggle={() => onToggle(r)} />
+          ))}
+        </div>
       )}
+
+      {sched.diff !== 0 && sched.count > 0 && (
+        <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+          ผลรวมทุกงวด <span className="num">{fmt0(sched.planned)}</span>{' '}
+          {sched.diff > 0 ? 'มากกว่า' : 'ยังไม่ครบ'}ยอดที่ให้ยืมอยู่{' '}
+          <span className="num">{fmt0(Math.abs(sched.diff))}</span> บาท
+        </p>
+      )}
+
+      {loan.note && <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{loan.note}</p>}
     </Section>
   )
 }
@@ -299,9 +297,7 @@ function InstallmentButton({ row, onToggle }) {
     >
       <span
         className={`grid size-6 shrink-0 place-items-center rounded-md border-2 transition ${
-          row.paid
-            ? 'border-emerald-500 bg-emerald-500 text-white'
-            : 'border-slate-300 dark:border-slate-600'
+          row.paid ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 dark:border-slate-600'
         }`}
       >
         {row.paid && <Check size={14} strokeWidth={3} />}
@@ -312,15 +308,17 @@ function InstallmentButton({ row, onToggle }) {
           {due && <span className={overdue ? ' text-rose-600 dark:text-rose-400' : ''}> · {due}</span>}
         </span>
         <span className={`num block text-sm font-semibold ${row.paid ? 'text-emerald-700 dark:text-emerald-300' : ''}`}>
-          {fmt0(row.expected)}
+          {fmt0(row.amount)}
         </span>
       </span>
     </button>
   )
 }
 
-function LoanModal({ state, onClose, onSave, onDelete }) {
+function LoanModal({ state, installments, onClose, onSave, onDelete }) {
   const [f, setF] = useState({})
+  const [rows, setRows] = useState([])
+  const [removed, setRemoved] = useState([])
   const [last, setLast] = useState(null)
 
   if (state && state !== last) {
@@ -328,23 +326,62 @@ function LoanModal({ state, onClose, onSave, onDelete }) {
     setF({
       borrower: state.borrower ?? '',
       amount: Number(state.amount) || 0,
-      installments: Number(state.installments) || 1,
       lent_on: state.lent_on ?? todayIso(),
-      first_due: state.first_due ?? '',
       note: state.note ?? '',
     })
+    setRows(
+      installments
+        .filter((p) => p.loan_id === state.id)
+        .sort(
+          (a, b) =>
+            (a.due_on ?? '9999-12-31').localeCompare(b.due_on ?? '9999-12-31') ||
+            a.installment_no - b.installment_no,
+        )
+        .map((p) => ({
+          id: p.id,
+          key: p.installment_no,
+          amount: Number(p.amount) || 0,
+          due: p.due_on ?? '',
+          paid: !!p.received_on,
+        })),
+    )
+    setRemoved([])
   }
   if (!state) return null
 
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }))
-  const n = Math.max(1, Math.min(60, Number(f.installments) || 1))
-  const per = f.amount ? f.amount / n : 0
-  const valid = f.borrower?.trim() && f.amount > 0
+  const setRow = (i, patch) => setRows((p) => p.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+
+  const addRow = () => {
+    const prev = rows[rows.length - 1]
+    setRows((p) => [
+      ...p,
+      {
+        id: null,
+        key: null,
+        // เดาวันให้เป็นเดือนถัดจากงวดก่อนหน้า แก้ทับได้ ไม่ได้บังคับ
+        due: prev?.due ? addMonths(prev.due, 1) : '',
+        amount: 0,
+        paid: false,
+      },
+    ])
+  }
+
+  const dropRow = (i) => {
+    const r = rows[i]
+    if (r.id) setRemoved((p) => [...p, r.id])
+    setRows((p) => p.filter((_, j) => j !== i))
+  }
+
+  const planned = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+  const diff = Math.round((planned - (Number(f.amount) || 0)) * 100) / 100
+  const valid = f.borrower?.trim()
 
   return (
     <Modal
       open
       onClose={onClose}
+      size="lg"
       title={state.id ? 'แก้ไขรายการเงินให้ยืม' : 'เพิ่มรายการเงินให้ยืม'}
       footer={
         <>
@@ -357,17 +394,18 @@ function LoanModal({ state, onClose, onSave, onDelete }) {
           <button
             onClick={() =>
               valid &&
-              onSave(
-                {
+              onSave({
+                id: state.id,
+                loan: {
                   borrower: f.borrower.trim(),
-                  amount: f.amount,
-                  installments: n,
+                  amount: Number(f.amount) || 0,
+                  installments: Math.max(1, rows.length),
                   lent_on: f.lent_on || null,
-                  first_due: f.first_due || null,
                   note: f.note.trim() || null,
                 },
-                state.id,
-              )
+                rows,
+                removedIds: removed,
+              })
             }
             disabled={!valid}
             className="btn-primary"
@@ -392,21 +430,6 @@ function LoanModal({ state, onClose, onSave, onDelete }) {
           <Field label="จำนวนเงินที่ให้ยืม (บาท)">
             <MoneyInput value={f.amount} onChange={set('amount')} />
           </Field>
-
-          <Field label="แบ่งคืนกี่งวด" hint={n > 1 ? `งวดละประมาณ ${fmt0(per)} บาท` : 'คืนทีเดียวจบ'}>
-            <input
-              type="number"
-              min={1}
-              max={60}
-              inputMode="numeric"
-              className="input num text-right text-base"
-              value={f.installments}
-              onChange={(e) => set('installments')(e.target.value)}
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="วันที่ให้ยืม">
             <input
               type="date"
@@ -415,18 +438,84 @@ function LoanModal({ state, onClose, onSave, onDelete }) {
               onChange={(e) => set('lent_on')(e.target.value)}
             />
           </Field>
+        </div>
 
-          <Field
-            label="กำหนดรับคืนงวดแรก"
-            hint="ใส่แล้วงวดถัดไปนับต่อเดือนละงวด และเตือนให้เมื่อเลยกำหนด — เว้นว่างได้ถ้ายังไม่ตกลงกัน"
-          >
-            <input
-              type="date"
-              className="input text-base"
-              value={f.first_due || ''}
-              onChange={(e) => set('first_due')(e.target.value)}
-            />
-          </Field>
+        {/* ---------- งวด ---------- */}
+        <div>
+          <div className="mb-2 flex items-end justify-between gap-2">
+            <div>
+              <p className="label mb-0">งวดที่ตกลงกันไว้</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                ใส่ยอดและกำหนดวันเองทีละงวด ไม่เท่ากันก็ได้
+              </p>
+            </div>
+            <button onClick={addRow} className="btn-outline shrink-0 !py-1.5 text-xs">
+              <Plus size={14} /> เพิ่มงวด
+            </button>
+          </div>
+
+          {rows.length === 0 ? (
+            <p className="rounded-lg bg-slate-50 px-3 py-4 text-center text-sm text-slate-400 dark:bg-slate-800/50 dark:text-slate-500">
+              ยังไม่มีงวด — กด “เพิ่มงวด” เพื่อใส่ทีละงวด
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {rows.map((r, i) => (
+                <div
+                  key={r.id ?? `new-${i}`}
+                  className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-700"
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      งวด {i + 1}
+                      {r.paid && (
+                        <span className="chip bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                          <Check size={11} /> ได้รับคืนแล้ว
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      onClick={() => dropRow(i)}
+                      className="btn-ghost !p-2 !text-rose-600"
+                      aria-label={`ลบงวด ${i + 1}`}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <MoneyInput
+                      value={r.amount}
+                      onChange={(v) => setRow(i, { amount: v })}
+                      placeholder="ยอดงวดนี้"
+                    />
+                    <input
+                      type="date"
+                      className="input text-base"
+                      value={r.due || ''}
+                      onChange={(e) => setRow(i, { due: e.target.value })}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <p className="pt-1 text-xs text-slate-500 dark:text-slate-400">
+                รวมทุกงวด <span className="num font-semibold">{fmt0(planned)}</span> บาท
+                {Number(f.amount) > 0 && (
+                  <>
+                    {' · '}
+                    {diff === 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400">เท่ากับยอดที่ให้ยืมพอดี</span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400">
+                        {diff > 0 ? 'มากกว่า' : 'ยังไม่ครบ'}ยอดที่ให้ยืมอยู่{' '}
+                        <span className="num">{fmt0(Math.abs(diff))}</span> บาท
+                      </span>
+                    )}
+                  </>
+                )}
+              </p>
+            </div>
+          )}
         </div>
 
         <Field label="โน้ต (ถ้ามี)">
