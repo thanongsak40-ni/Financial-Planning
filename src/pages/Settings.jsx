@@ -84,6 +84,8 @@ export default function Settings() {
       assets: data.assets,
       goals: data.goals,
       joys: data.joys,
+      loans: data.loans,
+      loan_payments: data.loanPayments,
       tax_items: data.taxItems,
       recurring: data.recurring,
       accounts: data.accounts,

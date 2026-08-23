@@ -768,3 +768,65 @@ export function payoffSchedule(balance, annualRate, monthlyPayment, maxMonths = 
   }
   return { months, totalInterest, totalPaid: n(balance) + totalInterest, feasible: true, schedule }
 }
+
+// ---------------------------------------------------------------------------
+//  เงินให้คนอื่นยืม
+// ---------------------------------------------------------------------------
+
+/** บวกเดือนแบบไม่ให้วันล้นเดือน (31 ม.ค. + 1 เดือน = 28/29 ก.พ. ไม่ใช่ 3 มี.ค.) */
+export function addMonths(iso, n) {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const day = d.getDate()
+  const target = new Date(d.getFullYear(), d.getMonth() + n, 1)
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+  target.setDate(Math.min(day, lastDay))
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * แตกรายการเงินให้ยืมเป็นรายงวด พร้อมสถานะรวม
+ *
+ * งวดที่ยังไม่ได้รับคือ "ไม่มีแถวใน payments" — ไม่ได้เก็บเป็นแถวว่าง
+ * จึงแก้จำนวนงวดทีหลังได้โดยไม่ต้องย้ายข้อมูลเดิม
+ *
+ * เศษจากการหารไม่ลงตัวไปรวมที่งวดสุดท้าย ผลรวมทุกงวดจึงเท่ากับยอดเต็มเสมอ
+ */
+export function loanSchedule(loan, payments = [], today = new Date()) {
+  const total = Number(loan.amount) || 0
+  const n = Math.max(1, Number(loan.installments) || 1)
+  const paidBy = new Map(payments.map((p) => [Number(p.installment_no), p]))
+
+  const per = Math.floor((total / n) * 100) / 100
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+  const rows = []
+  for (let i = 1; i <= n; i++) {
+    const paid = paidBy.get(i)
+    rows.push({
+      no: i,
+      // งวดสุดท้ายรับเศษไปทั้งหมด กันยอดรวมขาด/เกินจากการปัดเศษ
+      expected: i === n ? Math.round((total - per * (n - 1)) * 100) / 100 : per,
+      due: loan.first_due ? addMonths(loan.first_due, i - 1) : null,
+      paid: !!paid,
+      payment: paid ?? null,
+    })
+  }
+
+  const received = rows.reduce((s, r) => s + (r.paid ? Number(r.payment.amount) || 0 : 0), 0)
+  const outstanding = Math.round((total - received) * 100) / 100
+  const paidCount = rows.filter((r) => r.paid).length
+  const overdue = rows.filter((r) => !r.paid && r.due && r.due < todayIso)
+  const nextDue = rows.find((r) => !r.paid && r.due) ?? null
+
+  const status = paidCount >= n || outstanding <= 0
+    ? 'done'
+    : overdue.length
+      ? 'overdue'
+      : paidCount > 0
+        ? 'partial'
+        : 'pending'
+
+  return { rows, total, received, outstanding, paidCount, count: n, overdue: overdue.length, nextDue, status }
+}

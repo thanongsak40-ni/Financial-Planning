@@ -4,7 +4,7 @@ import { useIsMutating } from '@tanstack/react-query'
 import {
   LayoutDashboard, Rocket, NotebookPen, PiggyBank,
   TrendingUp, Landmark, CheckSquare, Receipt, Settings as SettingsIcon,
-  Wallet, Sun, Moon, LogOut, Loader2, Check, Smile,
+  Wallet, Sun, Moon, LogOut, Loader2, Check, Smile, HandCoins,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useYear } from '../hooks/useYear'
@@ -23,6 +23,7 @@ const NAV = [
     { to: '/savings', icon: PiggyBank, label: 'เงินสะสม' },
     { to: '/portfolio', icon: TrendingUp, label: 'พอร์ตลงทุน' },
     { to: '/balance', icon: Landmark, label: 'ความมั่งคั่งสุทธิ' },
+    { to: '/loans', icon: HandCoins, label: 'เงินให้ยืม' },
   ]},
   { group: 'วางแผน', items: [
     { to: '/goals', icon: CheckSquare, label: 'เป้าหมายปี' },

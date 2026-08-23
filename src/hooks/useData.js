@@ -16,6 +16,8 @@ const TABLES = [
   ['assets', 'assets', {}],
   ['goals', 'goals', { order: ['sort_order', { ascending: true }] }],
   ['joys', 'joys', { order: ['sort_order', { ascending: true }], optional: true }],
+  ['loans', 'loans', { order: ['sort_order', { ascending: true }], optional: true }],
+  ['loanPayments', 'loan_payments', { optional: true }],
   ['taxItems', 'tax_items', {}],
   ['recurring', 'recurring', {}],
   ['accounts', 'accounts', { order: ['sort_order', { ascending: true }], optional: true }],
@@ -438,6 +440,7 @@ export function useWipeMyData() {
       'entries', 'month_notes', 'carry_over', 'recurring',
       'account_snapshots', 'accounts',
       'portfolio_snapshots', 'net_worth_snapshots',
+      'loan_payments', 'loans',
       'portfolio', 'assets', 'goals', 'joys', 'tax_items', 'categories', 'settings',
     ]
     for (const t of tables) {
