@@ -23,7 +23,7 @@ const NAV = [
     { to: '/savings', icon: PiggyBank, label: 'เงินสะสม' },
     { to: '/portfolio', icon: TrendingUp, label: 'พอร์ตลงทุน' },
     { to: '/balance', icon: Landmark, label: 'ความมั่งคั่งสุทธิ' },
-    { to: '/loans', icon: HandCoins, label: 'เงินให้ยืม' },
+    { to: '/loans', icon: HandCoins, label: 'เงินค้างรับ' },
   ]},
   { group: 'วางแผน', items: [
     { to: '/goals', icon: CheckSquare, label: 'เป้าหมายปี' },

@@ -23,7 +23,7 @@ const MORE = [
   { to: '/milestone', icon: Rocket, label: 'เส้นทางสู่เป้า' },
   { to: '/accounts', icon: Wallet, label: 'บัญชีธนาคาร' },
   { to: '/balance', icon: Landmark, label: 'ความมั่งคั่งสุทธิ' },
-  { to: '/loans', icon: HandCoins, label: 'เงินให้ยืม' },
+  { to: '/loans', icon: HandCoins, label: 'เงินค้างรับ' },
   { to: '/goals', icon: CheckSquare, label: 'เป้าหมายปี' },
   { to: '/joy', icon: Smile, label: 'คลังความสุข' },
   { to: '/tax', icon: Receipt, label: 'แผนภาษี' },

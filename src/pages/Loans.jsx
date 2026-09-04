@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Pencil, HandCoins, Check, Trash2, Database, CalendarClock, X } from 'lucide-react'
+import { Plus, Pencil, HandCoins, Check, Trash2, Database, CalendarClock, X, FileText } from 'lucide-react'
 import { useFinanceData, useSaveLoan, useUpsertRow, useDeleteRow } from '../hooks/useData'
 import { useToast } from '../components/Toast'
 import {
@@ -10,17 +10,47 @@ import { loanSchedule, addMonths, MONTHS } from '../lib/calc'
 import { fmt0, fmtDate } from '../lib/format'
 
 /**
- * เงินให้คนอื่นยืม — เมนูแยก ไม่ไหลไปรวมกับความมั่งคั่งสุทธิหรือหน้าอื่น
- * ตามที่ผู้ใช้กำหนดไว้ (แบบเดียวกับเมนูบัญชีธนาคาร)
+ * เงินค้างรับ — เงินที่รออยู่ทั้งหมด แยกเป็นสองแบบในหน้าเดียว
+ *   ให้ยืม     = เราจ่ายเงินออกไปก่อน รอเขาคืน
+ *   ค้างรับ    = เราทำงานให้แล้ว รอเขาจ่าย
+ * กลไกเหมือนกันทุกอย่าง (แบ่งงวด กำหนดวัน ติ๊กเมื่อได้รับ) ต่างกันแค่คำเรียก
  *
- * ยอดแต่ละงวดผู้ใช้กรอกเอง ระบบไม่หารให้ — งวดจริงมักไม่เท่ากันทุกงวด
+ * เมนูแยก ไม่ไหลไปรวมกับความมั่งคั่งสุทธิหรือหน้าอื่น ตามที่ผู้ใช้กำหนด
+ * ยอดแต่ละงวดผู้ใช้กรอกเอง ระบบไม่หารให้
  */
 
+const KINDS = {
+  loan: {
+    label: 'ให้ยืม',
+    chip: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300',
+    icon: HandCoins,
+    who: 'ให้ใครยืม',
+    whoShort: 'คนยืม',
+    titleLabel: 'เรื่องที่ยืม (ถ้ามี)',
+    titlePlaceholder: 'เช่น ยืมไปซ่อมรถ',
+    amountLabel: 'จำนวนเงินที่ให้ยืม (บาท)',
+    dateLabel: 'วันที่ให้ยืม',
+    dateOnCard: 'ให้ยืม',
+  },
+  receivable: {
+    label: 'ค้างรับ',
+    chip: 'bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300',
+    icon: FileText,
+    who: 'จากใคร',
+    whoShort: 'จาก',
+    titleLabel: 'รายการ',
+    titlePlaceholder: 'เช่น ค่าจ้างทำเว็บ งวดเดือน ก.ค.',
+    amountLabel: 'ยอดที่ต้องได้รับ (บาท)',
+    dateLabel: 'วันที่ของรายการ',
+    dateOnCard: 'รายการวันที่',
+  },
+}
+
 const STATUS = {
-  pending: { label: 'ยังไม่ได้รับคืน', chip: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
-  partial: { label: 'ได้รับคืนบางส่วน', chip: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' },
+  pending: { label: 'ยังไม่ได้รับ', chip: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
+  partial: { label: 'ได้รับบางส่วน', chip: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' },
   overdue: { label: 'เลยกำหนด', chip: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
-  done: { label: 'ได้คืนครบแล้ว', chip: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
+  done: { label: 'ได้รับครบแล้ว', chip: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
 }
 
 const todayIso = () => {
@@ -36,6 +66,8 @@ function shortDue(iso) {
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`
 }
 
+const kindOf = (loan) => KINDS[loan.kind] ?? KINDS.loan
+
 export default function Loans() {
   const { data, isLoading, error, refetch } = useFinanceData()
   const saveLoan = useSaveLoan()
@@ -44,7 +76,8 @@ export default function Loans() {
   const toast = useToast()
 
   const [editing, setEditing] = useState(null)
-  const [filter, setFilter] = useState('open')
+  const [status, setStatus] = useState('open')
+  const [kind, setKind] = useState('all')
 
   const loans = data?.loans ?? []
   const installments = data?.loanPayments ?? []
@@ -69,25 +102,34 @@ export default function Loans() {
 
   const stats = useMemo(() => {
     const open = rows.filter((r) => r.sched.status !== 'done')
+    const sumOpen = (k) =>
+      open.filter((r) => (r.loan.kind ?? 'loan') === k).reduce((s, r) => s + r.sched.outstanding, 0)
     return {
-      lent: rows.reduce((s, r) => s + r.sched.total, 0),
+      total: rows.reduce((s, r) => s + r.sched.total, 0),
       received: rows.reduce((s, r) => s + r.sched.received, 0),
       outstanding: open.reduce((s, r) => s + r.sched.outstanding, 0),
+      openLoan: sumOpen('loan'),
+      openReceivable: sumOpen('receivable'),
       overdue: rows.filter((r) => r.sched.status === 'overdue').length,
       openCount: open.length,
+      byKind: {
+        loan: rows.filter((r) => (r.loan.kind ?? 'loan') === 'loan').length,
+        receivable: rows.filter((r) => r.loan.kind === 'receivable').length,
+      },
     }
   }, [rows])
 
   if (isLoading) return <Spinner />
   if (error) return <ErrorBox error={error} onRetry={refetch} />
 
+  const byKind = kind === 'all' ? rows : rows.filter((r) => (r.loan.kind ?? 'loan') === kind)
   const shown =
-    filter === 'all' ? rows
-      : filter === 'overdue' ? rows.filter((r) => r.sched.status === 'overdue')
-        : filter === 'done' ? rows.filter((r) => r.sched.status === 'done')
-          : rows.filter((r) => r.sched.status !== 'done')
+    status === 'all' ? byKind
+      : status === 'overdue' ? byKind.filter((r) => r.sched.status === 'overdue')
+        : status === 'done' ? byKind.filter((r) => r.sched.status === 'done')
+          : byKind.filter((r) => r.sched.status !== 'done')
 
-  /** ติ๊ก/ยกเลิกว่างวดนี้ได้รับคืนแล้ว — แตะเดียวจบ ไม่เปิดกล่อง */
+  /** ติ๊ก/ยกเลิกว่างวดนี้ได้รับแล้ว — แตะเดียวจบ ไม่เปิดกล่อง */
   function toggleReceived(row) {
     updateInstallment.mutate(
       { id: row.id, received_on: row.paid ? null : todayIso() },
@@ -98,12 +140,18 @@ export default function Loans() {
   return (
     <>
       <PageHeader
-        title="เงินให้ยืม"
-        subtitle="ให้ใครยืมไปเท่าไร ตกลงคืนเป็นงวดไหนบ้าง ได้รับแล้วหรือยัง — แยกจากเมนูอื่นทั้งหมด ไม่ไหลไปรวมกับความมั่งคั่งสุทธิ"
+        title="เงินค้างรับ"
+        subtitle="เงินที่ยังรออยู่ทั้งหมด — ทั้งที่ให้คนอื่นยืมไป และรายรับที่ทำงานให้แล้วแต่ยังไม่ได้เงิน แยกจากเมนูอื่น ไม่ไหลไปรวมกับความมั่งคั่งสุทธิ"
       >
-        <button onClick={() => setEditing({})} disabled={needsSetup} className="btn-primary">
-          <Plus size={16} /> เพิ่มรายการ
-        </button>
+        {/* ห่อไว้ก้อนเดียว ไม่งั้น justify-between ของ PageHeader จะดันสองปุ่มแยกคนละมุม */}
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setEditing({ kind: 'receivable' })} disabled={needsSetup} className="btn-outline">
+            <FileText size={16} /> เพิ่มรายรับค้างรับ
+          </button>
+          <button onClick={() => setEditing({ kind: 'loan' })} disabled={needsSetup} className="btn-primary">
+            <Plus size={16} /> ให้ยืมเงิน
+          </button>
+        </div>
       </PageHeader>
 
       {needsSetup ? (
@@ -118,7 +166,7 @@ export default function Loans() {
               <ol className="list-inside list-decimal space-y-1">
                 <li>เปิด Supabase → เมนู SQL Editor</li>
                 <li>
-                  เปิดไฟล์ <code className="rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-900/60">supabase/migrations/009_loans.sql</code> ในโปรเจกต์
+                  เปิดไฟล์ <code className="rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-900/60">supabase/migrations/009_receivables.sql</code> ในโปรเจกต์
                 </li>
                 <li>คัดลอกทั้งไฟล์ไปวางแล้วกด Run</li>
                 <li>กลับมาที่หน้านี้แล้วรีเฟรช</li>
@@ -129,29 +177,38 @@ export default function Loans() {
       ) : loans.length === 0 ? (
         <Empty
           icon={HandCoins}
-          title="ยังไม่มีรายการเงินให้ยืม"
-          hint="เพิ่มไว้ตั้งแต่วันที่ให้ยืม จะได้ไม่ต้องมานั่งนึกทีหลังว่าใครยืมไปเท่าไร ตกลงกันไว้อย่างไร และคืนมาแล้วบ้างหรือยัง"
+          title="ยังไม่มีรายการค้างรับ"
+          hint="ใส่ไว้ตั้งแต่วันที่ตกลงกัน จะได้ไม่ต้องมานั่งนึกทีหลังว่าใครติดเงินเราอยู่เท่าไร ตกลงกันไว้กี่งวด และเข้ามาแล้วบ้างหรือยัง"
           action={
-            <button onClick={() => setEditing({})} className="btn-primary">
-              <Plus size={16} /> เพิ่มรายการแรก
-            </button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button onClick={() => setEditing({ kind: 'loan' })} className="btn-primary">
+                <HandCoins size={16} /> ให้ยืมเงิน
+              </button>
+              <button onClick={() => setEditing({ kind: 'receivable' })} className="btn-outline">
+                <FileText size={16} /> รายรับค้างรับ
+              </button>
+            </div>
           }
         />
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="ให้ยืมไปทั้งหมด" value={stats.lent} tone="neutral" />
+            <StatCard label="ยอดรวมทั้งหมด" value={stats.total} tone="neutral" />
             <StatCard
-              label="ได้คืนแล้ว"
+              label="ได้รับแล้ว"
               value={stats.received}
               tone="income"
-              hint={stats.lent ? `${Math.round((stats.received / stats.lent) * 100)}% ของที่ให้ยืม` : undefined}
+              hint={stats.total ? `${Math.round((stats.received / stats.total) * 100)}% ของยอดรวม` : undefined}
             />
             <StatCard
               label="ยังค้างอยู่"
               value={stats.outstanding}
               tone="expense"
-              hint={stats.openCount ? `${stats.openCount} รายการที่ยังไม่ปิด` : 'ปิดครบทุกรายการแล้ว'}
+              hint={
+                stats.openCount
+                  ? `ให้ยืม ${fmt0(stats.openLoan)} · ค้างรับ ${fmt0(stats.openReceivable)}`
+                  : 'ปิดครบทุกรายการแล้ว'
+              }
             />
             <StatCard
               label="เลยกำหนด"
@@ -162,18 +219,32 @@ export default function Loans() {
             />
           </div>
 
-          <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
-            <Tabs
-              value={filter}
-              onChange={setFilter}
-              size="sm"
-              options={[
-                { value: 'open', label: `ยังไม่ปิด (${stats.openCount})` },
-                { value: 'overdue', label: `เลยกำหนด (${stats.overdue})` },
-                { value: 'done', label: `ปิดแล้ว (${rows.length - stats.openCount})` },
-                { value: 'all', label: `ทั้งหมด (${rows.length})` },
-              ]}
-            />
+          <div className="flex flex-wrap gap-2">
+            <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+              <Tabs
+                value={kind}
+                onChange={setKind}
+                size="sm"
+                options={[
+                  { value: 'all', label: `ทั้งสองแบบ (${rows.length})` },
+                  { value: 'loan', label: `ให้ยืม (${stats.byKind.loan})` },
+                  { value: 'receivable', label: `ค้างรับ (${stats.byKind.receivable})` },
+                ]}
+              />
+            </div>
+            <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+              <Tabs
+                value={status}
+                onChange={setStatus}
+                size="sm"
+                options={[
+                  { value: 'open', label: 'ยังไม่ปิด' },
+                  { value: 'overdue', label: 'เลยกำหนด' },
+                  { value: 'done', label: 'ปิดแล้ว' },
+                  { value: 'all', label: 'ทุกสถานะ' },
+                ]}
+              />
+            </div>
           </div>
 
           {shown.length === 0 ? (
@@ -218,23 +289,33 @@ export default function Loans() {
   )
 }
 
-/** การ์ดหนึ่งรายการ — ปุ่มงวดเรียงเป็นตาราง แตะเพื่อติ๊กว่าได้รับคืนแล้ว */
+/** การ์ดหนึ่งรายการ — ปุ่มงวดเรียงเป็นตาราง แตะเพื่อติ๊กว่าได้รับแล้ว */
 function LoanCard({ loan, sched, onEdit, onToggle }) {
   const st = STATUS[sched.status]
+  const k = kindOf(loan)
+  const KindIcon = k.icon
+
+  // ให้ยืมเน้นชื่อคน ค้างรับเน้นชื่อรายการ — คนละอย่างที่ใช้จำรายการนั้น
+  const heading = loan.kind === 'receivable' ? loan.title || loan.borrower : loan.borrower
+  const sub = loan.kind === 'receivable' ? loan.borrower : loan.title
 
   return (
     <Section className="group">
       <div className="mb-3 flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate font-semibold text-slate-900 dark:text-slate-100">{loan.borrower}</h2>
+            <h2 className="truncate font-semibold text-slate-900 dark:text-slate-100">{heading}</h2>
+            <span className={`chip ${k.chip}`}>
+              <KindIcon size={11} /> {k.label}
+            </span>
             <span className={`chip ${st.chip}`}>{st.label}</span>
           </div>
           <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-            <span className="num">คืนแล้ว {fmt0(sched.received)}</span>
+            {sub && <span className="truncate">{k.whoShort} {sub}</span>}
+            <span className="num">รับแล้ว {fmt0(sched.received)}</span>
             <span className="num">ค้าง {fmt0(sched.outstanding)}</span>
             {sched.count > 0 && <span className="num">{sched.paidCount}/{sched.count} งวด</span>}
-            {loan.lent_on && <span>ให้ยืม {fmtDate(loan.lent_on)}</span>}
+            {loan.lent_on && <span>{k.dateOnCard} {fmtDate(loan.lent_on)}</span>}
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -269,7 +350,7 @@ function LoanCard({ loan, sched, onEdit, onToggle }) {
       {sched.diff !== 0 && sched.count > 0 && (
         <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
           ผลรวมทุกงวด <span className="num">{fmt0(sched.planned)}</span>{' '}
-          {sched.diff > 0 ? 'มากกว่า' : 'ยังไม่ครบ'}ยอดที่ให้ยืมอยู่{' '}
+          {sched.diff > 0 ? 'มากกว่า' : 'ยังไม่ครบ'}ยอดเต็มอยู่{' '}
           <span className="num">{fmt0(Math.abs(sched.diff))}</span> บาท
         </p>
       )}
@@ -324,7 +405,9 @@ function LoanModal({ state, installments, onClose, onSave, onDelete }) {
   if (state && state !== last) {
     setLast(state)
     setF({
+      kind: state.kind ?? 'loan',
       borrower: state.borrower ?? '',
+      title: state.title ?? '',
       amount: Number(state.amount) || 0,
       lent_on: state.lent_on ?? todayIso(),
       note: state.note ?? '',
@@ -349,7 +432,8 @@ function LoanModal({ state, installments, onClose, onSave, onDelete }) {
   }
   if (!state) return null
 
-  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }))
+  const k = KINDS[f.kind] ?? KINDS.loan
+  const set = (key) => (v) => setF((p) => ({ ...p, [key]: v }))
   const setRow = (i, patch) => setRows((p) => p.map((r, j) => (j === i ? { ...r, ...patch } : r)))
 
   const addRow = () => {
@@ -375,14 +459,15 @@ function LoanModal({ state, installments, onClose, onSave, onDelete }) {
 
   const planned = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0)
   const diff = Math.round((planned - (Number(f.amount) || 0)) * 100) / 100
-  const valid = f.borrower?.trim()
+  // ค้างรับต้องมีชื่อรายการ เพราะชื่อคนจ่ายอย่างเดียวแยกไม่ออกว่างานไหน
+  const valid = f.borrower?.trim() && (f.kind !== 'receivable' || f.title?.trim())
 
   return (
     <Modal
       open
       onClose={onClose}
       size="lg"
-      title={state.id ? 'แก้ไขรายการเงินให้ยืม' : 'เพิ่มรายการเงินให้ยืม'}
+      title={state.id ? 'แก้ไขรายการ' : f.kind === 'receivable' ? 'เพิ่มรายรับค้างรับ' : 'เพิ่มรายการให้ยืมเงิน'}
       footer={
         <>
           {state.id && (
@@ -397,7 +482,9 @@ function LoanModal({ state, installments, onClose, onSave, onDelete }) {
               onSave({
                 id: state.id,
                 loan: {
+                  kind: f.kind,
                   borrower: f.borrower.trim(),
+                  title: f.title.trim() || null,
                   amount: Number(f.amount) || 0,
                   installments: Math.max(1, rows.length),
                   lent_on: f.lent_on || null,
@@ -416,21 +503,60 @@ function LoanModal({ state, installments, onClose, onSave, onDelete }) {
       }
     >
       <div className="space-y-4">
-        <Field label="ให้ใครยืม">
+        <Field label="แบบไหน">
+          <Tabs
+            value={f.kind}
+            onChange={set('kind')}
+            options={[
+              { value: 'loan', label: 'ให้ยืมเงิน' },
+              { value: 'receivable', label: 'รายรับค้างรับ' },
+            ]}
+          />
+          <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+            {f.kind === 'receivable'
+              ? 'ทำงานให้แล้วแต่ยังไม่ได้เงิน เช่น ค่าจ้าง ค่าคอมมิชชัน เงินคืนที่รออยู่'
+              : 'เราจ่ายเงินออกไปก่อน แล้วรอเขาคืน'}
+          </p>
+        </Field>
+
+        {f.kind === 'receivable' && (
+          <Field label={k.titleLabel}>
+            <input
+              autoFocus
+              className="input text-base"
+              value={f.title}
+              onChange={(e) => set('title')(e.target.value)}
+              placeholder={k.titlePlaceholder}
+            />
+          </Field>
+        )}
+
+        <Field label={k.who}>
           <input
-            autoFocus
+            autoFocus={f.kind === 'loan'}
             className="input text-base"
             value={f.borrower}
             onChange={(e) => set('borrower')(e.target.value)}
-            placeholder="ชื่อคนยืม"
+            placeholder={f.kind === 'receivable' ? 'ชื่อคนหรือบริษัทที่ต้องจ่ายให้เรา' : 'ชื่อคนยืม'}
           />
         </Field>
 
+        {f.kind === 'loan' && (
+          <Field label={k.titleLabel}>
+            <input
+              className="input text-base"
+              value={f.title}
+              onChange={(e) => set('title')(e.target.value)}
+              placeholder={k.titlePlaceholder}
+            />
+          </Field>
+        )}
+
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="จำนวนเงินที่ให้ยืม (บาท)">
+          <Field label={k.amountLabel}>
             <MoneyInput value={f.amount} onChange={set('amount')} />
           </Field>
-          <Field label="วันที่ให้ยืม">
+          <Field label={k.dateLabel}>
             <input
               type="date"
               className="input text-base"
@@ -470,7 +596,7 @@ function LoanModal({ state, installments, onClose, onSave, onDelete }) {
                       งวด {i + 1}
                       {r.paid && (
                         <span className="chip bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                          <Check size={11} /> ได้รับคืนแล้ว
+                          <Check size={11} /> ได้รับแล้ว
                         </span>
                       )}
                     </span>
@@ -504,10 +630,10 @@ function LoanModal({ state, installments, onClose, onSave, onDelete }) {
                   <>
                     {' · '}
                     {diff === 0 ? (
-                      <span className="text-emerald-600 dark:text-emerald-400">เท่ากับยอดที่ให้ยืมพอดี</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">เท่ากับยอดเต็มพอดี</span>
                     ) : (
                       <span className="text-amber-600 dark:text-amber-400">
-                        {diff > 0 ? 'มากกว่า' : 'ยังไม่ครบ'}ยอดที่ให้ยืมอยู่{' '}
+                        {diff > 0 ? 'มากกว่า' : 'ยังไม่ครบ'}ยอดเต็มอยู่{' '}
                         <span className="num">{fmt0(Math.abs(diff))}</span> บาท
                       </span>
                     )}
@@ -523,7 +649,7 @@ function LoanModal({ state, installments, onClose, onSave, onDelete }) {
             className="input text-base"
             value={f.note}
             onChange={(e) => set('note')(e.target.value)}
-            placeholder="เช่น ยืมไปซ่อมรถ ตกลงคืนหลังได้โบนัส"
+            placeholder={f.kind === 'receivable' ? 'เช่น ส่งใบแจ้งหนี้แล้ว รอรอบจ่ายสิ้นเดือน' : 'เช่น ตกลงคืนหลังได้โบนัส'}
           />
         </Field>
       </div>

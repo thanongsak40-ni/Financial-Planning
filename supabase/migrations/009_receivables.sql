@@ -1,7 +1,11 @@
 -- ============================================================================
---  Migration 009 — เงินให้คนอื่นยืม
+--  Migration 009 — เงินค้างรับ (เงินให้ยืม + รายรับค้างรับ)
 --
---  เก็บว่าให้ใครยืมเท่าไร แบ่งเป็นงวดอะไรบ้าง และได้รับคืนงวดไหนแล้ว
+--  เก็บว่ามีเงินอะไรรออยู่บ้าง จากใคร แบ่งเป็นงวดอะไรบ้าง รับมาแล้วงวดไหน
+--  ครอบคลุมสองแบบในตารางเดียว เพราะกลไกเหมือนกันทุกอย่าง
+--    loan       = ให้คนอื่นยืมเงินไป
+--    receivable = รายรับที่ทำงานให้แล้วแต่ยังไม่ได้เงิน
+--
 --  ยอดแต่ละงวดผู้ใช้กรอกเอง ระบบไม่หารให้ — งวดจริงมักไม่เท่ากันทุกงวด
 --
 --  ตั้งใจให้อยู่แยกเมนู ไม่ไหลไปรวมกับความมั่งคั่งสุทธิหรือหน้าอื่น
@@ -27,6 +31,16 @@ create table if not exists public.loans (
 -- เวอร์ชันแรกจำกัดจำนวนงวดไว้ 1–60 ตอนที่ยังหารให้อัตโนมัติ
 -- ตอนนี้ผู้ใช้เพิ่มงวดเองทีละงวด ไม่ต้องมีเพดานแล้ว
 alter table public.loans drop constraint if exists loans_installments_check;
+
+-- แยกว่าเป็นเงินที่เราให้ยืมไป หรือรายรับที่ยังไม่ได้รับ
+--   borrower = อีกฝ่าย (คนยืม / คนที่ต้องจ่ายให้เรา)
+--   title    = ชื่อรายการ ใช้กับรายรับค้างรับเป็นหลัก เช่น 'ค่าจ้างงานเว็บ ก.ค.'
+alter table public.loans add column if not exists kind  text not null default 'loan';
+alter table public.loans add column if not exists title text;
+
+alter table public.loans drop constraint if exists loans_kind_check;
+alter table public.loans add constraint loans_kind_check
+  check (kind in ('loan', 'receivable'));
 
 create index if not exists loans_user_idx on public.loans(user_id, sort_order);
 
@@ -66,5 +80,6 @@ create policy "own rows" on public.loan_payments
 
 -- ---------- 3. ตรวจผลลัพธ์ ----------
 select
-  (select count(*) from public.loans)         as loans_rows,
-  (select count(*) from public.loan_payments) as installment_rows;
+  (select count(*) from public.loans where kind = 'loan')       as loan_rows,
+  (select count(*) from public.loans where kind = 'receivable') as receivable_rows,
+  (select count(*) from public.loan_payments)                   as installment_rows;
