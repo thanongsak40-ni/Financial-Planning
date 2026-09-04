@@ -848,3 +848,159 @@ export function loanSchedule(loan, installments = [], today = new Date()) {
     status,
   }
 }
+
+// ---------------------------------------------------------------------------
+//  เครื่องคำนวณผลตอบแทน
+// ---------------------------------------------------------------------------
+
+/**
+ * ดอกเบี้ยทบต้นพร้อมเงินสมทบรายปี
+ *
+ * ธรรมเนียมการคิด: ดอกเบี้ยปีนั้นคิดจากยอดต้นปี เงินสมทบเข้าปลายปีจึงยัง
+ * ไม่ได้ดอกในปีที่ใส่ — ตรงกับเครื่องคำนวณที่ใช้กันทั่วไป และเป็นการ
+ * ประมาณที่ระมัดระวัง (ได้จริงมักมากกว่านี้เล็กน้อยถ้าทยอยใส่ทั้งปี)
+ *
+ * rate เป็นเปอร์เซ็นต์ต่อปี เช่น 10 = 10%
+ */
+export function compoundGrowth({ principal = 0, annualContribution = 0, rate = 0, years = 0 }) {
+  const r = (Number(rate) || 0) / 100
+  const p0 = Number(principal) || 0
+  const add = Number(annualContribution) || 0
+  const n = Math.max(0, Math.min(100, Math.round(Number(years) || 0)))
+
+  const rows = []
+  let balance = p0
+  let interestTotal = 0
+  let millionYear = p0 >= 1_000_000 ? 0 : null
+
+  for (let y = 1; y <= n; y++) {
+    const interest = balance * r
+    interestTotal += interest
+    balance = balance + interest + add
+    const invested = p0 + add * y
+    rows.push({ year: y, label: `${y}`, invested, interest, interestTotal, balance, profit: balance - invested })
+    if (millionYear === null && balance >= 1_000_000) millionYear = y
+  }
+
+  const invested = p0 + add * n
+  const profit = balance - invested
+  return {
+    rows,
+    final: balance,
+    invested,
+    profit,
+    // ทุก 1 บาทที่ใส่ กลายเป็นกี่บาท
+    multiple: invested > 0 ? balance / invested : 0,
+    // อัตราเติบโตทบต้นเทียบกับ "เงินที่ใส่จริงทั้งหมด" ไม่ใช่ผลตอบแทนที่ตั้งไว้
+    cagr: invested > 0 && n > 0 ? ((balance / invested) ** (1 / n) - 1) * 100 : 0,
+    millionYear,
+    profitShare: balance > 0 ? profit / balance : 0,
+  }
+}
+
+/**
+ * แผนสะสมหุ้นสหกรณ์เพื่อกินปันผลหลังเกษียณ
+ *
+ * ปันผลของสหกรณ์คิดตามจำนวนเดือนที่ถือหุ้นจริง เงินที่ส่งเดือนแรกได้ปันผล
+ * 12 เดือน เดือนสุดท้ายได้เดือนเดียว เฉลี่ยแล้วเงินที่ส่งระหว่างปีได้ปันผล
+ * เท่ากับถือไว้ 6.5 เดือน — (12+11+…+1)/12 = 6.5
+ *
+ * ยืนยันสูตรกับตัวเลขจริงจากเครื่องคำนวณต้นทางแล้ว
+ */
+const MONTHS_HELD_FACTOR = 6.5
+
+export function coopDividendPlan({
+  initialShares = 0,
+  monthly = 0,
+  rate = 0,
+  years = 0,
+  reinvestPct = 0,
+  stepUpAmount = 0,
+  stepUpEvery = 1,
+  currentAge = null,
+} = {}) {
+  const r = (Number(rate) || 0) / 100
+  const reinvest = Math.min(100, Math.max(0, Number(reinvestPct) || 0)) / 100
+  const base = Number(monthly) || 0
+  const step = Number(stepUpAmount) || 0
+  const every = Math.max(1, Math.round(Number(stepUpEvery) || 1))
+  const n = Math.max(0, Math.min(80, Math.round(Number(years) || 0)))
+
+  const rows = []
+  let shares = Number(initialShares) || 0
+  let ownPrincipal = Number(initialShares) || 0
+  let reinvestedTotal = 0
+  let dividendTotal = 0
+
+  for (let y = 1; y <= n; y++) {
+    const monthlyThisYear = base + step * Math.floor((y - 1) / every)
+    const contributed = monthlyThisYear * 12
+    // เงินที่ส่งระหว่างปีได้ปันผลเฉลี่ยเท่าถือไว้ 6.5 เดือน
+    const dividend = r * (shares + monthlyThisYear * MONTHS_HELD_FACTOR)
+    const reinvested = dividend * reinvest
+
+    shares = shares + contributed + reinvested
+    ownPrincipal += contributed
+    reinvestedTotal += reinvested
+    dividendTotal += dividend
+
+    rows.push({
+      year: y,
+      label: `${y}`,
+      age: currentAge ? Number(currentAge) + y : null,
+      monthly: monthlyThisYear,
+      contributed,
+      ownPrincipal,
+      dividend,
+      dividendMonthly: dividend / 12,
+      reinvested,
+      reinvestedTotal,
+      shares,
+    })
+  }
+
+  const lastDividend = rows.length ? rows[rows.length - 1].dividend : 0
+  return {
+    rows,
+    finalShares: shares,
+    ownPrincipal,
+    reinvestedTotal,
+    dividendTotal,
+    lastDividend,
+    // ปันผลปีสุดท้ายเฉลี่ยต่อเดือน — ตัวที่เอาไปเทียบกับเป้าหมายรายเดือน
+    lastMonthly: lastDividend / 12,
+    endAge: currentAge ? Number(currentAge) + n : null,
+  }
+}
+
+/** ต้องมีหุ้นเท่าไรถึงจะได้ปันผลเดือนละตามเป้า (ที่อัตราปันผลนี้) */
+export function sharesNeededFor(targetMonthly, rate) {
+  const r = (Number(rate) || 0) / 100
+  if (r <= 0) return null
+  return ((Number(targetMonthly) || 0) * 12) / r
+}
+
+/**
+ * ต้องส่งหุ้นเดือนละเท่าไรถึงจะถึงเป้าปันผลในเวลาที่ตั้งไว้
+ * ค้นแบบแบ่งครึ่ง เพราะปันผลปีสุดท้ายเพิ่มตามเงินที่ส่งแบบต่อเนื่อง
+ */
+export function solveMonthlyForDividend(params, targetMonthly) {
+  const target = Number(targetMonthly) || 0
+  if (target <= 0 || !params.years || !params.rate) return null
+
+  const at = (m) => coopDividendPlan({ ...params, monthly: m }).lastMonthly
+  if (at(0) >= target) return 0
+
+  let lo = 0
+  let hi = 1000
+  // ขยายเพดานจนกว่าจะเกินเป้า กันกรณีเป้าสูงมาก
+  while (at(hi) < target && hi < 1e9) hi *= 2
+  if (at(hi) < target) return null
+
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2
+    if (at(mid) < target) lo = mid
+    else hi = mid
+  }
+  return hi
+}
