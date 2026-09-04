@@ -41,11 +41,11 @@ const DEFAULTS = {
 }
 
 const RATE_PRESETS = [
-  { label: 'เงินฝาก 1.5%', value: 1.5 },
-  { label: 'พันธบัตร 3%', value: 3 },
-  { label: 'สหกรณ์ 5%', value: 5 },
-  { label: 'SET 7%', value: 7 },
-  { label: 'S&P500 10%', value: 10 },
+  { label: '1.5%', value: 1.5 },
+  { label: '3%', value: 3 },
+  { label: '5%', value: 5 },
+  { label: '7%', value: 7 },
+  { label: '10%', value: 10 },
 ]
 
 /** ปุ่มลัดใส่ตัวเลขเร็ว ๆ — เป้าสัมผัสใหญ่พอสำหรับนิ้ว */
