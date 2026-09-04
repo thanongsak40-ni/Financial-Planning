@@ -217,6 +217,7 @@ export default function Calculator() {
 // ---------------------------------------------------------------------------
 
 function CompoundView({ f, set, growth, annualContribution, colors }) {
+  const perMonth = f.contributionPer === 'month'
   const chartData = growth.rows.map((r) => ({
     label: r.label,
     invested: Math.round(r.invested),
@@ -228,9 +229,12 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
       <Section title="ตัวแปรการลงทุน">
         <div className="grid gap-5 lg:grid-cols-2">
           <div>
-            <Field label="เงินต้น (บาท)">
-              <MoneyInput value={f.principal} onChange={set('principal')} />
-            </Field>
+            {/* สองช่องในแถวนี้ใช้โครงเดียวกันเป๊ะ หัวข้อสูงเท่ากัน
+                ช่องกรอกจึงเริ่มที่ระดับเดียวกัน และมีปุ่มลัดใต้ทั้งคู่ */}
+            <div className="mb-1.5 flex min-h-8 flex-wrap items-end justify-between gap-x-2 gap-y-1">
+              <span className="label mb-0">เงินต้น (บาท)</span>
+            </div>
+            <MoneyInput value={f.principal} onChange={set('principal')} />
             <Chips
               value={f.principal}
               onChange={set('principal')}
@@ -245,8 +249,16 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
           </div>
 
           <div>
-            <div className="mb-1.5 flex items-end justify-between gap-2">
-              <span className="label mb-0">เงินสมทบเพิ่ม</span>
+            <div className="mb-1.5 flex min-h-8 flex-wrap items-end justify-between gap-x-2 gap-y-1">
+              <span className="label mb-0">
+                เงินสมทบเพิ่ม
+                {Number(f.contribution) > 0 && (
+                  <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">
+                    = <span className="num">{fmt0(perMonth ? annualContribution : annualContribution / 12)}</span>
+                    {perMonth ? '/ปี' : '/เดือน'}
+                  </span>
+                )}
+              </span>
               <Tabs
                 value={f.contributionPer}
                 onChange={set('contributionPer')}
@@ -258,22 +270,42 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
               />
             </div>
             <MoneyInput value={f.contribution} onChange={set('contribution')} />
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              = <span className="num">{fmt0(annualContribution)}</span> บาทต่อปี
-            </p>
+            <Chips
+              value={f.contribution}
+              onChange={set('contribution')}
+              options={
+                perMonth
+                  ? [
+                      { label: '1K', value: 1000 },
+                      { label: '5K', value: 5000 },
+                      { label: '10K', value: 10000 },
+                      { label: '20K', value: 20000 },
+                      { label: '50K', value: 50000 },
+                    ]
+                  : [
+                      { label: '12K', value: 12000 },
+                      { label: '60K', value: 60000 },
+                      { label: '120K', value: 120000 },
+                      { label: '240K', value: 240000 },
+                      { label: '600K', value: 600000 },
+                    ]
+              }
+            />
           </div>
 
           <div>
-            <Field label="ผลตอบแทนต่อปี (%)">
-              <NumberBox value={f.rate} onChange={set('rate')} suffix="%" max={100} />
-            </Field>
+            <div className="mb-1.5 flex min-h-8 flex-wrap items-end justify-between gap-x-2 gap-y-1">
+              <span className="label mb-0">ผลตอบแทนต่อปี (%)</span>
+            </div>
+            <NumberBox value={f.rate} onChange={set('rate')} suffix="%" max={100} />
             <Chips value={f.rate} onChange={set('rate')} options={RATE_PRESETS} />
           </div>
 
           <div>
-            <Field label="ระยะเวลา (ปี)">
-              <NumberBox value={f.years} onChange={set('years')} suffix="ปี" max={80} />
-            </Field>
+            <div className="mb-1.5 flex min-h-8 flex-wrap items-end justify-between gap-x-2 gap-y-1">
+              <span className="label mb-0">ระยะเวลา (ปี)</span>
+            </div>
+            <NumberBox value={f.years} onChange={set('years')} suffix="ปี" max={80} />
             <Chips
               value={f.years}
               onChange={set('years')}
