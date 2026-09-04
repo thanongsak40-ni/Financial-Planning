@@ -49,9 +49,9 @@ const RATE_PRESETS = [
 ]
 
 /** ปุ่มลัดใส่ตัวเลขเร็ว ๆ — เป้าสัมผัสใหญ่พอสำหรับนิ้ว */
-function Chips({ options, value, onChange }) {
+function Chips({ options, value, onChange, className = 'mt-2' }) {
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <div className={`flex flex-wrap gap-1.5 ${className}`}>
       {options.map((o) => (
         <button
           key={o.label ?? o.value}
@@ -227,15 +227,17 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
   return (
     <div className="space-y-4">
       <Section title="ตัวแปรการลงทุน">
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div>
-            {/* สองช่องในแถวนี้ใช้โครงเดียวกันเป๊ะ หัวข้อสูงเท่ากัน
-                ช่องกรอกจึงเริ่มที่ระดับเดียวกัน และมีปุ่มลัดใต้ทั้งคู่ */}
-            <div className="mb-1.5 flex min-h-8 flex-wrap items-end justify-between gap-x-2 gap-y-1">
+        {/* subgrid — สี่ช่องนี้ใช้เส้นแถวชุดเดียวกับตารางแม่ หัวข้อ/ช่องกรอก/ปุ่มลัด
+            จึงอยู่ระดับเดียวกันเป๊ะ ไม่ว่าหัวข้อฝั่งไหนจะมีปุ่มสลับอยู่ด้วยหรือไม่
+            (เดิมกะความสูงเอาแล้วคลาดกัน 4px เพราะปุ่มสลับสูงกว่าตัวอักษร) */}
+        <div className="grid gap-x-5 gap-y-5 lg:grid-cols-2 lg:grid-rows-[repeat(6,auto)]">
+          <div className="grid content-start gap-2 lg:row-span-3 lg:grid-rows-subgrid">
+            <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
               <span className="label mb-0">เงินต้น (บาท)</span>
             </div>
             <MoneyInput value={f.principal} onChange={set('principal')} />
             <Chips
+              className=""
               value={f.principal}
               onChange={set('principal')}
               options={[
@@ -248,8 +250,8 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
             />
           </div>
 
-          <div>
-            <div className="mb-1.5 flex min-h-8 flex-wrap items-end justify-between gap-x-2 gap-y-1">
+          <div className="grid content-start gap-2 lg:row-span-3 lg:grid-rows-subgrid">
+            <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
               <span className="label mb-0">
                 เงินสมทบเพิ่ม
                 {Number(f.contribution) > 0 && (
@@ -271,6 +273,7 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
             </div>
             <MoneyInput value={f.contribution} onChange={set('contribution')} />
             <Chips
+              className=""
               value={f.contribution}
               onChange={set('contribution')}
               options={
@@ -293,20 +296,21 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
             />
           </div>
 
-          <div>
-            <div className="mb-1.5 flex min-h-8 flex-wrap items-end justify-between gap-x-2 gap-y-1">
+          <div className="grid content-start gap-2 lg:row-span-3 lg:grid-rows-subgrid">
+            <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
               <span className="label mb-0">ผลตอบแทนต่อปี (%)</span>
             </div>
             <NumberBox value={f.rate} onChange={set('rate')} suffix="%" max={100} />
-            <Chips value={f.rate} onChange={set('rate')} options={RATE_PRESETS} />
+            <Chips className="" value={f.rate} onChange={set('rate')} options={RATE_PRESETS} />
           </div>
 
-          <div>
-            <div className="mb-1.5 flex min-h-8 flex-wrap items-end justify-between gap-x-2 gap-y-1">
+          <div className="grid content-start gap-2 lg:row-span-3 lg:grid-rows-subgrid">
+            <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
               <span className="label mb-0">ระยะเวลา (ปี)</span>
             </div>
             <NumberBox value={f.years} onChange={set('years')} suffix="ปี" max={80} />
             <Chips
+              className=""
               value={f.years}
               onChange={set('years')}
               options={[
