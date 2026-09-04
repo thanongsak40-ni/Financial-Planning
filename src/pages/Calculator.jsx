@@ -5,7 +5,7 @@ import { PageHeader, Spinner, ErrorBox, Section, StatCard, Field, MoneyInput, Ta
 import { ChartCard, StackedArea, DataTable } from '../components/charts'
 import { useChartColors } from '../lib/chartTheme'
 import { compoundGrowth, coopDividendPlan, sharesNeededFor, solveMonthlyForDividend } from '../lib/calc'
-import { fmt0, fmt2, fmtPct } from '../lib/format'
+import { fmt0, fmtPct } from '../lib/format'
 
 /**
  * เครื่องคำนวณผลตอบแทน — สองโหมดในเมนูเดียว
@@ -268,10 +268,6 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
               <NumberBox value={f.rate} onChange={set('rate')} suffix="%" max={100} />
             </Field>
             <Chips value={f.rate} onChange={set('rate')} options={RATE_PRESETS} />
-            <p className="mt-2 flex items-start gap-1.5 text-xs text-slate-400 dark:text-slate-500">
-              <Info size={13} className="mt-px shrink-0" />
-              ควรหักเงินเฟ้อ (ราว 2–3% ต่อปี) ออกจากผลตอบแทนที่คาดหวัง ตัวเลขที่ได้จะเป็นมูลค่าเงินวันนี้
-            </p>
           </div>
 
           <div>
@@ -311,44 +307,6 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
           tone="income"
           hint={`${Math.round(growth.profitShare * 100)}% ของยอดสุดท้าย — ส่วนที่เงินหามาเอง`}
         />
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Section>
-          <p className="text-xs font-medium tracking-wide text-slate-500 uppercase dark:text-slate-400">
-            เงินทำงานแทนคุณ
-          </p>
-          <p className="mt-2 text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-            × {fmt2(growth.multiple)}
-          </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            ทุก 1 บาทที่ใส่ กลายเป็น {fmt2(growth.multiple)} บาทตอนจบ
-          </p>
-        </Section>
-        <Section>
-          <p className="text-xs font-medium tracking-wide text-slate-500 uppercase dark:text-slate-400">
-            เติบโตจริงเฉลี่ยต่อปี
-          </p>
-          <p className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-            {fmt2(growth.cagr)}%
-          </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            เทียบกับเงินที่ใส่ทั้งหมด ต่ำกว่า {f.rate}% เพราะเงินสมทบปีหลัง ๆ ยังโตได้ไม่นาน
-          </p>
-        </Section>
-        <Section>
-          <p className="text-xs font-medium tracking-wide text-slate-500 uppercase dark:text-slate-400">
-            ถึงเงินล้านแรก
-          </p>
-          <p className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400">
-            {growth.millionYear === null ? 'ยังไม่ถึง' : growth.millionYear === 0 ? 'ถึงแล้ว' : `ปีที่ ${growth.millionYear}`}
-          </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {growth.millionYear === null
-              ? `ในระยะ ${f.years} ปีนี้ยังไม่แตะ 1 ล้าน`
-              : 'นับจากวันนี้ที่อัตราและเงินสมทบนี้'}
-          </p>
-        </Section>
       </div>
 
       {growth.rows.length > 0 && (
