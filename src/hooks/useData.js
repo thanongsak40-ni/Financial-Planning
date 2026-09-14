@@ -146,17 +146,38 @@ export function useFillRow() {
   })
 }
 
+/**
+ * บันทึกหมายเหตุประจำเดือน
+ *
+ * โน้ตอยู่คนละแคชกับข้อมูลการเงินหลัก (['notes', …] ไม่ใช่ ['finance', …])
+ * เวอร์ชันก่อนใช้ useFinanceMutation ซึ่งสั่งโหลดใหม่เฉพาะ ['finance'] —
+ * บันทึกลงฐานข้อมูลได้จริง แต่หน้าจอยังถือข้อความเก่า เปิดกล่องใหม่
+ * จึงเห็นข้อความเดิม และถ้าพิมพ์ต่อก็เขียนทับของที่บันทึกไว้แล้ว
+ *
+ * ตอนนี้เขียนผลลงแคชทันทีที่ฐานข้อมูลยืนยัน แล้วค่อยโหลดซ้ำเพื่อความชัวร์
+ */
 export function useSaveNote() {
-  return useFinanceMutation(async ({ year, month, note }, userId) => {
-    if (!note?.trim()) {
-      return unwrap(await supabase.from('month_notes').delete().match({ user_id: userId, year, month }))
-    }
-    return unwrap(
-      await supabase
-        .from('month_notes')
-        .upsert({ user_id: userId, year, month, note }, { onConflict: 'user_id,year,month' })
-        .select(),
-    )
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: async ({ year, month, note }) => {
+      if (!note?.trim()) {
+        return unwrap(await supabase.from('month_notes').delete().match({ user_id: user.id, year, month }))
+      }
+      return unwrap(
+        await supabase
+          .from('month_notes')
+          .upsert({ user_id: user.id, year, month, note }, { onConflict: 'user_id,year,month' })
+          .select(),
+      )
+    },
+    onSuccess: (_data, { year, month, note }) => {
+      qc.setQueryData(['notes', user?.id, year], (old = []) => {
+        const rest = old.filter((n) => n.month !== month)
+        return note?.trim() ? [...rest, { user_id: user.id, year, month, note }] : rest
+      })
+      return qc.invalidateQueries({ queryKey: ['notes', user?.id] })
+    },
   })
 }
 

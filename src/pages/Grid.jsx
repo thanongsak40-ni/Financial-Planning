@@ -1,6 +1,6 @@
-import { Fragment, useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { Fragment, useMemo, useState, useRef, useCallback } from 'react'
 import {
-  Plus, Pencil, StickyNote, Wand2, ChevronDown, ChevronRight, ChevronLeft, Trash2,
+  Plus, Pencil, StickyNote, Wand2, ChevronDown, ChevronRight, ChevronLeft, Trash2, Loader2, Save,
 } from 'lucide-react'
 import { useFinanceData, useSaveEntry, useFillRow, useSaveCategory, useDeleteCategory, useSaveNote, useMonthNotes } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
@@ -548,12 +548,12 @@ export default function Grid() {
       <NoteModal
         state={noteModal}
         onClose={() => setNoteModal(null)}
-        onSave={(month, note) =>
-          saveNote.mutate(
-            { year, month, note },
-            { onError: (e) => toast.error(`บันทึกหมายเหตุไม่สำเร็จ: ${e.message}`) },
-          )
-        }
+        onSave={async (month, note) => {
+          // รอฐานข้อมูลยืนยันก่อนเสมอ — ถ้าล้มเหลว error จะเด้งกลับไปที่กล่อง
+          // ให้แสดงผลและเก็บข้อความไว้ ไม่ปิดกล่องทิ้ง
+          await saveNote.mutateAsync({ year, month, note })
+          toast.success(note.trim() ? 'บันทึกหมายเหตุแล้ว' : 'ลบหมายเหตุแล้ว')
+        }}
       />
 
     </>
@@ -812,70 +812,110 @@ function FillModal({ state, year, onClose, onFill }) {
 }
 
 /**
- * หมายเหตุประจำเดือน — บันทึกเองเหมือนช่องตัวเลข
+ * หมายเหตุประจำเดือน — กดบันทึกแล้วต้องบันทึกจริง
  *
- * เดิมบันทึกตอนกดปุ่มอย่างเดียว ถ้าพิมพ์ยาว ๆ แล้วปิดกล่องด้วยการแตะพื้นหลัง
- * หรือปุ่มกากบาท ข้อความหายทั้งหมดโดยไม่มีอะไรเตือน และบนมือถือการแตะปุ่ม
- * บันทึกก็มีจังหวะพลาดตอนคีย์บอร์ดยุบแล้วกล่องขยับ
+ * ปุ่มบันทึกรอจนฐานข้อมูลยืนยันก่อนค่อยปิดกล่อง ถ้าล้มเหลวกล่องไม่ปิด
+ * ข้อความยังอยู่ครบ และบอกสาเหตุให้เห็น — ไม่มีการบันทึกเงียบ ๆ เบื้องหลัง
+ * ที่อาจชนกันเองเหมือนเวอร์ชันก่อน
+ *
+ * ปิดกล่องทั้งที่ยังไม่ได้บันทึก (กากบาท แตะพื้นหลัง Esc ยกเลิก) จะถามก่อน
+ * ข้อความจึงไม่หายโดยไม่ตั้งใจ
  */
 function NoteModal({ state, onClose, onSave }) {
   const [text, setText] = useState('')
+  const [saved, setSaved] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const [askDiscard, setAskDiscard] = useState(false)
   const last = useRef(null)
-  const textRef = useRef('')     // ข้อความล่าสุดที่พิมพ์
-  const savedRef = useRef('')    // ข้อความล่าสุดที่บันทึกลงฐานข้อมูลแล้ว
-  const monthRef = useRef(null)
-  const saveRef = useRef(onSave)
-  saveRef.current = onSave
 
   if (state && state !== last.current) {
     last.current = state
-    const initial = state.note || ''
-    setText(initial)
-    textRef.current = initial
-    savedRef.current = initial
-    monthRef.current = state.month
+    setText(state.note || '')
+    setSaved(state.note || '')
+    setBusy(false)
+    setError(null)
+    setAskDiscard(false)
   }
-
-  const flush = useCallback(() => {
-    if (monthRef.current == null || textRef.current === savedRef.current) return
-    savedRef.current = textRef.current
-    saveRef.current(monthRef.current, textRef.current)
-  }, [])
-
-  // หยุดพิมพ์แล้วบันทึกเอง ไม่ต้องรอกดปุ่ม
-  useEffect(() => {
-    if (!state) return
-    const t = setTimeout(flush, 700)
-    return () => clearTimeout(t)
-  }, [text, state, flush])
-
   if (!state) return null
 
-  // ปิดกล่องทางไหนก็ได้ (ปุ่มเสร็จแล้ว กากบาท แตะพื้นหลัง Esc) ต้องบันทึกก่อนเสมอ
-  const close = () => {
-    flush()
-    onClose()
+  const dirty = text.trim() !== (saved || '').trim()
+
+  async function save() {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave(state.month, text)
+      setSaved(text)
+      onClose()
+    } catch (e) {
+      setError(e?.message || 'เชื่อมต่อไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function requestClose() {
+    if (busy) return
+    if (dirty) setAskDiscard(true)
+    else onClose()
   }
 
   return (
     <Modal
       open
-      onClose={close}
+      onClose={requestClose}
       title={`หมายเหตุเดือน${MONTHS_FULL[state.month - 1]}`}
-      footer={<button onClick={close} className="btn-primary">เสร็จแล้ว</button>}
+      footer={
+        askDiscard ? (
+          <>
+            <span className="mr-auto self-center text-sm text-amber-700 dark:text-amber-400">ยังไม่ได้บันทึก</span>
+            <button onClick={onClose} className="btn-ghost !text-rose-600">ทิ้งข้อความ</button>
+            <button onClick={save} disabled={busy} className="btn-primary">
+              {busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {busy ? 'กำลังบันทึก…' : 'บันทึก'}
+            </button>
+          </>
+        ) : (
+          <>
+            <button onClick={requestClose} disabled={busy} className="btn-ghost">ยกเลิก</button>
+            <button onClick={save} disabled={busy} className="btn-primary">
+              {busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {busy ? 'กำลังบันทึก…' : 'บันทึก'}
+            </button>
+          </>
+        )
+      }
     >
       <textarea
         autoFocus
         rows={5}
         className="input resize-y text-base"
         value={text}
-        onChange={(e) => { textRef.current = e.target.value; setText(e.target.value) }}
-        onBlur={flush}
+        onChange={(e) => {
+          setText(e.target.value)
+          setAskDiscard(false)
+        }}
+        onKeyDown={(e) => {
+          // คอม: Ctrl/⌘ + Enter บันทึกได้เลยไม่ต้องจับเมาส์
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault()
+            save()
+          }
+        }}
         placeholder="เช่น ยืมเงินเพื่อน 2,000 คืนสิ้นเดือน / ได้โบนัสพิเศษ / เดือนนี้จ่ายค่าเทอม"
       />
+
+      {error && (
+        <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
+          บันทึกไม่สำเร็จ: {error} — ข้อความยังอยู่ ลองกดบันทึกอีกครั้ง
+        </p>
+      )}
+
       <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-        ไว้จดเหตุการณ์ที่ตัวเลขอย่างเดียวบอกไม่ได้ — บันทึกให้เองเมื่อหยุดพิมพ์
-        ดูสถานะได้ที่แถบบน · ลบข้อความทั้งหมดคือลบหมายเหตุ
+        ไว้จดเหตุการณ์ที่ตัวเลขอย่างเดียวบอกไม่ได้ — ลบข้อความทั้งหมดแล้วกดบันทึก คือลบหมายเหตุ
+        <span className="hidden lg:inline"> · กด Ctrl/⌘ + Enter เพื่อบันทึก</span>
       </p>
     </Modal>
   )
