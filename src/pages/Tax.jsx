@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import {
-  Plus, Pencil, Trash2, Info, TrendingDown, Link2, PenLine, RotateCcw, X, AlertTriangle, ChevronDown,
+  Plus, Pencil, Trash2, Info, TrendingDown, Download, RotateCcw, X, AlertTriangle, ChevronDown,
 } from 'lucide-react'
 import { useFinanceData, useUpsertRow, useDeleteRow, useSetSetting } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
@@ -9,24 +9,23 @@ import {
   PageHeader, Spinner, ErrorBox, Section, StatCard, Modal, Field, MoneyInput, ConfirmButton, Tabs,
 } from '../components/ui'
 import { yearGrid } from '../lib/calc'
-import {
-  INCOME_TYPES, DEDUCTIONS, RETIRE_GROUP_CAP,
-  computeTax, deductionScenarios, buildDefaultConfig,
-} from '../lib/tax'
+import { INCOME_TYPES, DEDUCTIONS, RETIRE_GROUP_CAP, computeTax, deductionScenarios, buildDefaultConfig } from '../lib/tax'
 import { fmt0, fmtPct } from '../lib/format'
 
 const TYPE_LABEL = { deduction: 'ค่าลดหย่อน', withholding: 'ภาษีหัก ณ ที่จ่าย' }
 const SECTION_LABEL = { income: 'รายรับ', saving: 'เงินออม/ลงทุน', expense: 'รายจ่าย' }
 
 /**
- * แผนภาษี — คำนวณเองได้ทุกช่อง และเลือกได้ว่าแต่ละตัวเลขดึงมาจากไหน
+ * แผนภาษี — กรอกเองได้ทุกช่อง และกดดึงยอดจากที่บันทึกไว้มาเติมได้
  *
- * ทุกช่องมีสองโหมด
- *   ดึงอัตโนมัติ = ติ๊กเลือกหมวดจากหน้าแผนการเงิน แล้วรวมยอดทั้งปีให้
- *   กรอกเอง      = พิมพ์ทับ โดยยังเห็นค่าที่ดึงได้ไว้เทียบ
+ * ทุกช่องเป็นตัวเลขของผู้ใช้ล้วน ๆ ปุ่ม "ดึง" แค่เติมค่าให้ครั้งเดียว แล้วแก้ต่อ
+ * ได้อิสระ — ไม่ผูกให้ค่าขยับตามหมวดเอง เพราะตัวเลขที่ใช้ยื่นภาษีมักไม่ตรงกับ
+ * ยอดในสมุดเป๊ะ ๆ (มีรายการที่ได้รับยกเว้น หรืออยู่คนละรอบปี)
+ *
+ * ระบบจำไว้ว่าช่องไหนเคยดึงจากหมวดอะไร จะได้กดซ้ำทีหลังได้ในแตะเดียว
+ * และบอกให้เห็นเมื่อยอดในสมุดขยับไปจากตัวเลขที่กรอกไว้ แต่ไม่บังคับให้ตรงกัน
  *
  * การตั้งค่าเก็บแยกรายปีใน settings จึงไม่ต้องสร้างตารางใหม่
- * ส่วนรายการลดหย่อน/หัก ณ ที่จ่ายที่กรอกเอง ยังอยู่ในตาราง tax_items เหมือนเดิม
  */
 export default function Tax() {
   const { year } = useYear()
@@ -38,12 +37,12 @@ export default function Tax() {
 
   const [editing, setEditing] = useState(null)
   const [itemTab, setItemTab] = useState('deduction')
-  const [picker, setPicker] = useState(null) // { title, selected, onPick }
-  const [showAllDeductions, setShowAllDeductions] = useState(false)
+  const [picker, setPicker] = useState(null)
+  const [showAll, setShowAll] = useState(false)
 
   const settingKey = `tax_${year}`
 
-  // ---- หมวดทั้งหมดพร้อมยอดรวมทั้งปี ใช้เป็นตัวเลือก "ดึงอัตโนมัติ" ----
+  // ---- หมวดทั้งหมดพร้อมยอดรวมทั้งปี ใช้เป็นตัวเลือกตอนกดดึง ----
   const catalog = useMemo(() => {
     if (!data) return []
     const grid = yearGrid(year, 'actual', data.categories ?? [], data.entries ?? [])
@@ -58,6 +57,8 @@ export default function Tax() {
   }, [data, year])
 
   const totalOf = useMemo(() => Object.fromEntries(catalog.map((c) => [c.id, c.total])), [catalog])
+  const sumOf = (ids = []) => ids.reduce((s, id) => s + (totalOf[id] ?? 0), 0)
+  const namesOf = (ids = []) => ids.map((id) => catalog.find((c) => c.id === id)?.name).filter(Boolean)
 
   const taxItems = useMemo(
     () => (data?.taxItems ?? []).filter((t) => Number(t.year) === year),
@@ -66,7 +67,7 @@ export default function Tax() {
   const withholdingItems = taxItems.filter((t) => t.type === 'withholding')
   const withholdingFromItems = withholdingItems.reduce((s, t) => s + (Number(t.amount) || 0), 0)
 
-  // ---- ค่าตั้งค่าของปีนี้ ----
+  // ---- ค่าที่ตั้งไว้ของปีนี้ ----
   const [cfg, setCfg] = useState(null)
   const loadedYear = useRef(null)
 
@@ -79,10 +80,9 @@ export default function Tax() {
     } catch {
       /* ค่าเสียรูป — สร้างใหม่จากข้อมูลที่มี */
     }
-    setCfg(next ?? buildDefaultConfig({ categories: data.categories ?? [], taxItems }))
+    setCfg(next ?? buildDefaultConfig({ categories: data.categories ?? [], taxItems, totalOf }))
   }
 
-  // จำค่าที่ตั้งไว้ หน่วงให้ปรับเสร็จก่อนค่อยบันทึกครั้งเดียว
   const dirty = useRef(false)
   useEffect(() => {
     if (!cfg || !dirty.current) return
@@ -96,58 +96,51 @@ export default function Tax() {
     setCfg((prev) => fn(structuredClone(prev)))
   }
 
-  // ---- แปลง "ที่มา" เป็นตัวเลข ----
-  const resolve = (src) => {
-    if (!src) return 0
-    if (src.mode === 'categories') return (src.categoryIds ?? []).reduce((s, id) => s + (totalOf[id] ?? 0), 0)
-    if (src.mode === 'taxItems') return withholdingFromItems
-    return Number(src.amount) || 0
-  }
-
   const result = useMemo(() => {
     if (!cfg) return null
-    const incomes = (cfg.incomes ?? []).map((i) => ({ ...i, amount: resolve(i.source) }))
-    const deductions = {}
-    for (const d of DEDUCTIONS) {
-      const src = cfg.deductionSources?.[d.key]
-      deductions[d.key] = src?.mode === 'categories' ? resolve(src) : Number(cfg.deductions?.[d.key]) || 0
-    }
     return computeTax({
-      incomes,
-      deductions,
+      incomes: cfg.incomes ?? [],
+      deductions: cfg.deductions ?? {},
       custom: cfg.custom ?? [],
-      withholding: resolve(cfg.withholding),
+      withholding: cfg.withholding ?? 0,
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg, totalOf, withholdingFromItems])
+  }, [cfg])
 
   if (isLoading || !cfg || !result) return <Spinner />
   if (error) return <ErrorBox error={error} onRetry={refetch} />
 
   const scenarios = deductionScenarios(result)
-  const usedKeys = DEDUCTIONS.filter(
-    (d) => d.fixed || Number(cfg.deductions?.[d.key]) > 0 || cfg.deductionSources?.[d.key]?.mode === 'categories',
-  ).map((d) => d.key)
-  const shownDeductions = showAllDeductions ? DEDUCTIONS : DEDUCTIONS.filter((d) => usedKeys.includes(d.key))
+  const usedKeys = DEDUCTIONS.filter((d) => d.fixed || Number(cfg.deductions?.[d.key]) > 0).map((d) => d.key)
+  const shownDeductions = showAll ? DEDUCTIONS : DEDUCTIONS.filter((d) => usedKeys.includes(d.key))
 
-  function openPicker(title, selected, onPick) {
-    setPicker({ title, selected: selected ?? [], onPick })
+  /** เปิดหน้าต่างเลือกหมวด แล้วเอายอดรวมมาเติมลงช่อง */
+  function pull({ title, selected, onFill }) {
+    setPicker({
+      title,
+      selected: selected ?? [],
+      onPick: (ids) => {
+        const amount = sumOf(ids)
+        onFill(amount, ids)
+        setPicker(null)
+        toast.success(`ดึงมาแล้ว ${fmt0(amount)} บาท — แก้ต่อได้เลย`)
+      },
+    })
   }
 
   function resetConfig() {
     dirty.current = true
-    setCfg(buildDefaultConfig({ categories: data.categories ?? [], taxItems }))
-    toast.info('ตั้งค่าใหม่จากข้อมูลที่บันทึกไว้แล้ว')
+    setCfg(buildDefaultConfig({ categories: data.categories ?? [], taxItems, totalOf }))
+    toast.info('ดึงข้อมูลที่บันทึกไว้มาใส่ใหม่ทั้งหมดแล้ว')
   }
 
   return (
     <>
       <PageHeader
         title={`แผนภาษี ปี ${year}`}
-        subtitle="คำนวณเองได้ทุกช่อง และเลือกได้ว่าแต่ละตัวเลขจะดึงจากหมวดไหนที่บันทึกไว้ หรือจะพิมพ์เอง"
+        subtitle="กรอกตัวเลขเองได้ทุกช่อง และกดปุ่มดึงเพื่อเอายอดจากที่บันทึกไว้มาเติม แล้วแก้ต่อได้ตามจริง"
       >
         <button onClick={resetConfig} className="btn-outline">
-          <RotateCcw size={15} /> ตั้งค่าใหม่จากข้อมูลที่บันทึก
+          <RotateCcw size={15} /> ดึงใหม่ทั้งหมด
         </button>
       </PageHeader>
 
@@ -178,7 +171,7 @@ export default function Tax() {
               {result.warnings.map((w) => <li key={w}>{w}</li>)}
             </ul>
             <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
-              ระบบยังคำนวณตามตัวเลขที่กรอกให้อยู่ ไม่ได้ตัดทิ้ง เผื่อกฎหมายเปลี่ยนหรือมีสิทธิ์พิเศษ
+              ระบบยังคำนวณตามตัวเลขที่คุณกรอก ไม่ได้ตัดทิ้ง เผื่อกฎหมายเปลี่ยนหรือมีสิทธิ์พิเศษ
             </p>
           </div>
         )}
@@ -195,7 +188,8 @@ export default function Tax() {
                     id: `inc-${Date.now()}`,
                     name: 'เงินได้ใหม่',
                     type: '40(2)',
-                    source: { mode: 'manual', amount: 0 },
+                    amount: 0,
+                    link: { categoryIds: [] },
                     expense: { mode: 'auto' },
                   })
                   return c
@@ -212,15 +206,18 @@ export default function Tax() {
               <IncomeBlock
                 key={inc.id}
                 income={inc}
-                amount={result.rows[i]?.amount ?? 0}
                 expense={result.rows[i]?.expense ?? 0}
-                catalog={catalog}
+                linkNames={namesOf(inc.link?.categoryIds)}
+                linkTotal={sumOf(inc.link?.categoryIds)}
                 onChange={(patch) => update((c) => { Object.assign(c.incomes[i], patch); return c })}
                 onRemove={() => update((c) => { c.incomes.splice(i, 1); return c })}
-                onPickCategories={() =>
-                  openPicker('เลือกหมวดที่เป็นเงินได้ก้อนนี้', inc.source.categoryIds ?? [], (ids) =>
-                    update((c) => { c.incomes[i].source = { mode: 'categories', categoryIds: ids }; return c }),
-                  )
+                onPull={() =>
+                  pull({
+                    title: `ดึงยอดเข้าช่อง "${inc.name}"`,
+                    selected: inc.link?.categoryIds ?? [],
+                    onFill: (amount, ids) =>
+                      update((c) => { c.incomes[i].amount = amount; c.incomes[i].link = { categoryIds: ids }; return c }),
+                  })
                 }
               />
             ))}
@@ -236,45 +233,39 @@ export default function Tax() {
         {/* ---------- 2. ค่าลดหย่อน ---------- */}
         <Section
           title="ค่าลดหย่อน"
-          subtitle={`ใช้อยู่ ${usedKeys.length} รายการ · กดปุ่มขวาเพื่อดูรายการทั้งหมดที่กฎหมายให้`}
+          subtitle={`ใช้อยู่ ${usedKeys.length} รายการ จากทั้งหมด ${DEDUCTIONS.length} รายการที่กฎหมายให้`}
           right={
-            <button onClick={() => setShowAllDeductions((v) => !v)} className="btn-outline !py-1.5 text-xs">
-              <ChevronDown size={14} className={showAllDeductions ? 'rotate-180 transition' : 'transition'} />
-              {showAllDeductions ? 'แสดงเฉพาะที่ใช้' : `ดูทั้งหมด (${DEDUCTIONS.length})`}
+            <button onClick={() => setShowAll((v) => !v)} className="btn-outline !py-1.5 text-xs">
+              <ChevronDown size={14} className={showAll ? 'rotate-180 transition' : 'transition'} />
+              {showAll ? 'แสดงเฉพาะที่ใช้' : 'ดูทั้งหมด'}
             </button>
           }
         >
           <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-            {shownDeductions.map((d) => {
-              const src = cfg.deductionSources?.[d.key] ?? { mode: 'manual' }
-              const auto = src.mode === 'categories'
-              const amount = auto ? resolve(src) : Number(cfg.deductions?.[d.key]) || 0
-              return (
-                <DeductionRow
-                  key={d.key}
-                  meta={d}
-                  amount={amount}
-                  source={src}
-                  onMode={(mode) =>
-                    update((c) => {
-                      c.deductionSources = c.deductionSources ?? {}
-                      c.deductionSources[d.key] = mode === 'categories' ? { mode, categoryIds: src.categoryIds ?? [] } : { mode }
-                      return c
-                    })
-                  }
-                  onAmount={(v) => update((c) => { c.deductions = c.deductions ?? {}; c.deductions[d.key] = v; return c })}
-                  onPickCategories={() =>
-                    openPicker(`เลือกหมวดสำหรับ ${d.label}`, src.categoryIds ?? [], (ids) =>
+            {shownDeductions.map((d) => (
+              <DeductionRow
+                key={d.key}
+                meta={d}
+                amount={Number(cfg.deductions?.[d.key]) || 0}
+                linkNames={namesOf(cfg.deductionLinks?.[d.key]?.categoryIds)}
+                linkTotal={sumOf(cfg.deductionLinks?.[d.key]?.categoryIds)}
+                onAmount={(v) => update((c) => { c.deductions = c.deductions ?? {}; c.deductions[d.key] = v; return c })}
+                onPull={() =>
+                  pull({
+                    title: `ดึงยอดเข้าช่อง "${d.label}"`,
+                    selected: cfg.deductionLinks?.[d.key]?.categoryIds ?? [],
+                    onFill: (amount, ids) =>
                       update((c) => {
-                        c.deductionSources = c.deductionSources ?? {}
-                        c.deductionSources[d.key] = { mode: 'categories', categoryIds: ids }
+                        c.deductions = c.deductions ?? {}
+                        c.deductionLinks = c.deductionLinks ?? {}
+                        c.deductions[d.key] = amount
+                        c.deductionLinks[d.key] = { categoryIds: ids }
                         return c
                       }),
-                    )
-                  }
-                />
-              )
-            })}
+                  })
+                }
+              />
+            ))}
           </div>
 
           {/* ค่าลดหย่อนที่ตั้งชื่อเอง */}
@@ -289,25 +280,21 @@ export default function Tax() {
               </button>
             </div>
             {(cfg.custom ?? []).length === 0 ? (
-              <p className="text-xs text-slate-400 dark:text-slate-500">ไม่มี — ใช้ได้กับสิทธิ์ที่ไม่อยู่ในรายการมาตรฐาน</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">ไม่มี — ใช้กับสิทธิ์ที่ไม่อยู่ในรายการมาตรฐาน</p>
             ) : (
               <div className="space-y-2">
                 {cfg.custom.map((c0, i) => (
                   <div key={c0.id} className="flex items-center gap-2">
                     <input
-                      className="input flex-1 text-base"
+                      className="input min-w-0 flex-1 text-base"
                       placeholder="ชื่อค่าลดหย่อน"
                       value={c0.name}
                       onChange={(e) => update((c) => { c.custom[i].name = e.target.value; return c })}
                     />
-                    <div className="w-36 shrink-0">
+                    <div className="w-32 shrink-0">
                       <MoneyInput value={c0.amount} onChange={(v) => update((c) => { c.custom[i].amount = v; return c })} />
                     </div>
-                    <button
-                      onClick={() => update((c) => { c.custom.splice(i, 1); return c })}
-                      className="btn-ghost !p-2 !text-rose-600"
-                      aria-label="ลบ"
-                    >
+                    <button onClick={() => update((c) => { c.custom.splice(i, 1); return c })} className="btn-ghost !p-2 !text-rose-600" aria-label="ลบ">
                       <X size={15} />
                     </button>
                   </div>
@@ -325,44 +312,44 @@ export default function Tax() {
 
         {/* ---------- 3. ภาษีหัก ณ ที่จ่าย ---------- */}
         <Section title="ภาษีหัก ณ ที่จ่าย" subtitle="ยอดที่ถูกหักไว้แล้วระหว่างปี เอาไปลบออกจากภาษีที่ต้องเสีย">
-          <div className="flex flex-wrap items-center gap-3">
-            <Tabs
-              value={cfg.withholding?.mode ?? 'taxItems'}
-              onChange={(mode) =>
-                update((c) => {
-                  c.withholding = mode === 'categories' ? { mode, categoryIds: c.withholding?.categoryIds ?? [] } : { mode, amount: c.withholding?.amount ?? 0 }
-                  return c
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-40">
+              <MoneyInput value={cfg.withholding ?? 0} onChange={(v) => update((c) => { c.withholding = v; return c })} />
+            </div>
+            <button
+              onClick={() => {
+                update((c) => { c.withholding = withholdingFromItems; return c })
+                toast.success(`ดึงมาแล้ว ${fmt0(withholdingFromItems)} บาท — แก้ต่อได้เลย`)
+              }}
+              disabled={!withholdingItems.length}
+              className="btn-outline !py-1.5 text-xs"
+            >
+              <Download size={14} /> ดึงจากรายการที่กรอกไว้ ({withholdingItems.length})
+            </button>
+            <button
+              onClick={() =>
+                pull({
+                  title: 'ดึงยอดภาษีหัก ณ ที่จ่ายจากหมวด',
+                  selected: cfg.withholdingLink?.categoryIds ?? [],
+                  onFill: (amount, ids) => update((c) => { c.withholding = amount; c.withholdingLink = { categoryIds: ids }; return c }),
                 })
               }
-              size="sm"
-              options={[
-                { value: 'taxItems', label: `รายการที่กรอกไว้ (${withholdingItems.length})` },
-                { value: 'categories', label: 'ดึงจากหมวด' },
-                { value: 'manual', label: 'กรอกเอง' },
-              ]}
-            />
-            {cfg.withholding?.mode === 'manual' && (
-              <div className="w-40">
-                <MoneyInput
-                  value={cfg.withholding.amount ?? 0}
-                  onChange={(v) => update((c) => { c.withholding = { mode: 'manual', amount: v }; return c })}
-                />
-              </div>
-            )}
-            {cfg.withholding?.mode === 'categories' && (
-              <button
-                onClick={() =>
-                  openPicker('เลือกหมวดที่เป็นภาษีหัก ณ ที่จ่าย', cfg.withholding.categoryIds ?? [], (ids) =>
-                    update((c) => { c.withholding = { mode: 'categories', categoryIds: ids }; return c }),
-                  )
-                }
-                className="btn-outline !py-1.5 text-xs"
-              >
-                <Link2 size={14} /> เลือกหมวด ({(cfg.withholding.categoryIds ?? []).length})
-              </button>
-            )}
-            <span className="num ml-auto text-lg font-bold">{fmt0(result.withholding)}</span>
+              className="btn-outline !py-1.5 text-xs"
+            >
+              <Download size={14} /> ดึงจากหมวด
+            </button>
           </div>
+          <LinkHint
+            names={namesOf(cfg.withholdingLink?.categoryIds)}
+            total={sumOf(cfg.withholdingLink?.categoryIds)}
+            current={cfg.withholding ?? 0}
+            onUse={() => update((c) => { c.withholding = sumOf(c.withholdingLink?.categoryIds); return c })}
+          />
+          {withholdingItems.length > 0 && Math.abs(withholdingFromItems - (cfg.withholding ?? 0)) >= 0.005 && (
+            <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+              รายการที่กรอกไว้ด้านล่างรวมได้ <span className="num">{fmt0(withholdingFromItems)}</span> ซึ่งต่างจากช่องนี้
+            </p>
+          )}
         </Section>
 
         {/* ---------- 4. ใบคำนวณ ---------- */}
@@ -407,9 +394,7 @@ export default function Tax() {
                     <td className="num px-2 py-2 text-right text-emerald-600 dark:text-emerald-400">−{fmt0(result.withholding)}</td>
                   </tr>
                   <tr className="border-t border-slate-200 font-bold dark:border-slate-700">
-                    <td colSpan={3} className="px-2 py-2.5">
-                      {result.settle >= 0 ? 'ต้องจ่ายเพิ่ม' : 'ขอคืนได้'}
-                    </td>
+                    <td colSpan={3} className="px-2 py-2.5">{result.settle >= 0 ? 'ต้องจ่ายเพิ่ม' : 'ขอคืนได้'}</td>
                     <td className={`num px-2 py-2.5 text-right ${result.settle >= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                       {fmt0(Math.abs(result.settle))}
                     </td>
@@ -445,9 +430,7 @@ export default function Tax() {
                       </td>
                       <td className="num px-2 py-2 text-right text-slate-500">{fmt0(s.netIncome)}</td>
                       <td className="num px-2 py-2 text-right font-medium">{fmt0(s.tax)}</td>
-                      <td className="num px-2 py-2 text-right text-emerald-600 dark:text-emerald-400">
-                        {s.saved > 0 ? fmt0(s.saved) : '—'}
-                      </td>
+                      <td className="num px-2 py-2 text-right text-emerald-600 dark:text-emerald-400">{s.saved > 0 ? fmt0(s.saved) : '—'}</td>
                       <td className="num px-2 py-2 text-right">
                         {s.add > 0 ? (
                           <span className={s.savedPct >= 0.15 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}>
@@ -472,7 +455,7 @@ export default function Tax() {
         {/* ---------- 6. รายการที่บันทึกไว้ ---------- */}
         <Section
           title="รายการที่บันทึกไว้"
-          subtitle="เก็บหลักฐานรายตัว เช่น หนังสือรับรองหัก ณ ที่จ่ายแต่ละใบ"
+          subtitle="เก็บหลักฐานรายตัว เช่น หนังสือรับรองหัก ณ ที่จ่ายแต่ละใบ แล้วค่อยกดดึงยอดรวมขึ้นไปข้างบน"
           right={
             <div className="flex items-center gap-2">
               <Tabs
@@ -505,29 +488,18 @@ export default function Tax() {
               ))}
             </ul>
           )}
-          {itemTab === 'deduction' && (
-            <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-              รายการตรงนี้ไม่ได้ถูกนำไปคำนวณโดยตรง — กด "ตั้งค่าใหม่จากข้อมูลที่บันทึก" ด้านบน
-              ถ้าอยากให้ระบบจับคู่เข้ารายการค่าลดหย่อนมาตรฐานให้อีกครั้ง
-            </p>
-          )}
         </Section>
 
         <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
           <Info size={17} className="mt-px shrink-0" />
           <p>
             เป็น<strong>การประมาณการเพื่อวางแผน</strong> เพดานต่าง ๆ อ้างอิงเกณฑ์ที่ใช้กันทั่วไปและอาจเปลี่ยนตามประกาศแต่ละปี
-            ระบบจะเตือนเมื่อเกินเพดานแต่ไม่ตัดตัวเลขทิ้ง เพื่อให้กรอกตามสิทธิ์จริงของคุณได้ — ก่อนยื่นจริงควรตรวจกับกรมสรรพากรอีกครั้ง
+            ระบบเตือนเมื่อเกินเพดานแต่ไม่ตัดตัวเลขทิ้ง เพื่อให้กรอกตามสิทธิ์จริงของคุณได้ — ก่อนยื่นจริงควรตรวจกับกรมสรรพากรอีกครั้ง
           </p>
         </div>
       </div>
 
-      <CategoryPicker
-        state={picker}
-        catalog={catalog}
-        onClose={() => setPicker(null)}
-        onSave={(ids) => { picker.onPick(ids); setPicker(null) }}
-      />
+      <CategoryPicker state={picker} catalog={catalog} onClose={() => setPicker(null)} />
 
       <ItemModal
         state={editing}
@@ -576,36 +548,30 @@ function CalcLine({ label, value, strong, sub }) {
   )
 }
 
-/** สวิตช์ ดึงอัตโนมัติ / กรอกเอง — ใช้ซ้ำทุกช่อง */
-function SourceToggle({ mode, onChange }) {
+/**
+ * บอกว่าช่องนี้เคยดึงมาจากหมวดอะไร และตอนนี้ยอดในสมุดขยับไปหรือยัง
+ * ไม่บังคับให้ตรงกัน แค่บอกให้รู้ กดอัปเดตเองได้
+ */
+function LinkHint({ names, total, current, onUse }) {
+  if (!names.length) return null
+  const changed = Math.abs(total - current) >= 0.005
   return (
-    <div className="inline-flex shrink-0 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-      {[
-        { v: 'categories', icon: Link2, label: 'ดึง' },
-        { v: 'manual', icon: PenLine, label: 'กรอกเอง' },
-      ].map(({ v, icon: Icon, label }) => (
-        <button
-          key={v}
-          onClick={() => onChange(v)}
-          className={`flex cursor-pointer items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition ${
-            mode === v
-              ? 'bg-indigo-600 text-white'
-              : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-400'
-          }`}
-        >
-          <Icon size={12} /> {label}
-        </button>
-      ))}
-    </div>
+    <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+      เคยดึงจาก: {names.join(' · ')}
+      {changed && (
+        <>
+          {' '}· ตอนนี้ยอดในสมุดเป็น <span className="num">{fmt0(total)}</span>{' '}
+          <button onClick={onUse} className="cursor-pointer font-medium text-indigo-600 underline underline-offset-2 dark:text-indigo-400">
+            ใช้ยอดนี้
+          </button>
+        </>
+      )}
+    </p>
   )
 }
 
-function IncomeBlock({ income, amount, expense, catalog, onChange, onRemove, onPickCategories }) {
+function IncomeBlock({ income, expense, linkNames, linkTotal, onChange, onRemove, onPull }) {
   const meta = INCOME_TYPES[income.type] ?? INCOME_TYPES['40(8)']
-  const auto = income.source?.mode === 'categories'
-  const picked = (income.source?.categoryIds ?? [])
-    .map((id) => catalog.find((c) => c.id === id)?.name)
-    .filter(Boolean)
   const expMode = income.expense?.mode ?? 'auto'
 
   return (
@@ -617,11 +583,7 @@ function IncomeBlock({ income, amount, expense, catalog, onChange, onRemove, onP
           onChange={(e) => onChange({ name: e.target.value })}
           placeholder="ชื่อก้อนเงินได้"
         />
-        <select
-          className="input w-auto shrink-0 text-base"
-          value={income.type}
-          onChange={(e) => onChange({ type: e.target.value })}
-        >
+        <select className="input w-auto shrink-0 text-base" value={income.type} onChange={(e) => onChange({ type: e.target.value })}>
           {Object.entries(INCOME_TYPES).map(([k, v]) => (
             <option key={k} value={k}>{k} {v.short}</option>
           ))}
@@ -632,27 +594,15 @@ function IncomeBlock({ income, amount, expense, catalog, onChange, onRemove, onP
       </div>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <SourceToggle
-          mode={auto ? 'categories' : 'manual'}
-          onChange={(m) =>
-            onChange({ source: m === 'categories' ? { mode: 'categories', categoryIds: income.source?.categoryIds ?? [] } : { mode: 'manual', amount } })
-          }
-        />
-        {auto ? (
-          <button onClick={onPickCategories} className="btn-outline !py-1.5 text-xs">
-            เลือกหมวด ({picked.length})
-          </button>
-        ) : (
-          <div className="w-36">
-            <MoneyInput value={income.source?.amount ?? 0} onChange={(v) => onChange({ source: { mode: 'manual', amount: v } })} />
-          </div>
-        )}
-        <span className="num ml-auto font-semibold">{fmt0(amount)}</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">จำนวนเงิน</span>
+        <div className="w-40">
+          <MoneyInput value={income.amount ?? 0} onChange={(v) => onChange({ amount: v })} />
+        </div>
+        <button onClick={onPull} className="btn-outline !py-1.5 text-xs">
+          <Download size={14} /> ดึงจากหมวด
+        </button>
       </div>
-
-      {auto && picked.length > 0 && (
-        <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">ดึงจาก: {picked.join(' · ')}</p>
-      )}
+      <LinkHint names={linkNames} total={linkTotal} current={income.amount ?? 0} onUse={() => onChange({ amount: linkTotal })} />
 
       <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
         <span className="text-xs text-slate-500 dark:text-slate-400">หักค่าใช้จ่าย</span>
@@ -684,15 +634,12 @@ function IncomeBlock({ income, amount, expense, catalog, onChange, onRemove, onP
         <span className="num ml-auto text-rose-600 dark:text-rose-400">−{fmt0(expense)}</span>
       </div>
 
-      {expMode === 'auto' && meta.note && (
-        <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{meta.note}</p>
-      )}
+      {expMode === 'auto' && meta.note && <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{meta.note}</p>}
     </div>
   )
 }
 
-function DeductionRow({ meta, amount, source, onMode, onAmount, onPickCategories }) {
-  const auto = source.mode === 'categories'
+function DeductionRow({ meta, amount, linkNames, linkTotal, onAmount, onPull }) {
   const over = meta.cap && amount > meta.cap
 
   return (
@@ -700,38 +647,30 @@ function DeductionRow({ meta, amount, source, onMode, onAmount, onPickCategories
       <div className="flex flex-wrap items-center gap-2">
         <span className="min-w-0 flex-1 text-sm">
           {meta.label}
-          {meta.cap && (
-            <span className="num ml-1.5 text-xs text-slate-400 dark:text-slate-500">สูงสุด {fmt0(meta.cap)}</span>
-          )}
+          {meta.cap && <span className="num ml-1.5 text-xs text-slate-400 dark:text-slate-500">สูงสุด {fmt0(meta.cap)}</span>}
         </span>
 
         {meta.fixed ? (
-          <span className="num font-semibold">{fmt0(amount)}</span>
+          <span className="num w-32 shrink-0 text-right font-semibold">{fmt0(amount)}</span>
         ) : (
           <>
-            <SourceToggle mode={auto ? 'categories' : 'manual'} onChange={onMode} />
-            {auto ? (
-              <button onClick={onPickCategories} className="btn-outline !py-1.5 text-xs">
-                เลือกหมวด ({(source.categoryIds ?? []).length})
-              </button>
-            ) : (
-              <div className="w-32">
-                <MoneyInput value={amount} onChange={onAmount} />
-              </div>
-            )}
-            <span className={`num w-24 shrink-0 text-right font-semibold ${over ? 'text-amber-600 dark:text-amber-400' : ''}`}>
-              {fmt0(amount)}
-            </span>
+            <div className={`w-32 shrink-0 ${over ? '[&_input]:!border-amber-400' : ''}`}>
+              <MoneyInput value={amount} onChange={onAmount} />
+            </div>
+            <button onClick={onPull} className="btn-ghost !p-2" title="ดึงยอดจากหมวดที่บันทึกไว้" aria-label="ดึงยอดจากหมวด">
+              <Download size={15} />
+            </button>
           </>
         )}
       </div>
       {meta.hint && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{meta.hint}</p>}
+      <LinkHint names={linkNames} total={linkTotal} current={amount} onUse={() => onAmount(linkTotal)} />
     </div>
   )
 }
 
-/** เลือกหมวดจากที่บันทึกไว้ — แสดงยอดรวมทั้งปีของแต่ละหมวดให้เห็นก่อนติ๊ก */
-function CategoryPicker({ state, catalog, onClose, onSave }) {
+/** เลือกหมวดจากที่บันทึกไว้ — เห็นยอดรวมทั้งปีของแต่ละหมวดก่อนติ๊ก */
+function CategoryPicker({ state, catalog, onClose }) {
   const [sel, setSel] = useState([])
   const last = useRef(null)
 
@@ -753,13 +692,18 @@ function CategoryPicker({ state, catalog, onClose, onSave }) {
       footer={
         <>
           <span className="mr-auto self-center text-sm text-slate-500 dark:text-slate-400">
-            เลือกแล้ว {sel.length} หมวด · รวม <span className="num font-semibold">{fmt0(total)}</span>
+            เลือก {sel.length} หมวด · รวม <span className="num font-semibold">{fmt0(total)}</span>
           </span>
           <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
-          <button onClick={() => onSave(sel)} className="btn-primary">ใช้หมวดที่เลือก</button>
+          <button onClick={() => state.onPick(sel)} className="btn-primary">
+            <Download size={15} /> ดึงยอดนี้มาใส่
+          </button>
         </>
       }
     >
+      <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+        ยอดที่ดึงมาเป็นแค่ค่าตั้งต้น กดดึงแล้วยังพิมพ์แก้ตัวเลขต่อเองได้เสมอ
+      </p>
       <div className="space-y-4">
         {['income', 'saving', 'expense'].map((sec) => {
           const list = catalog.filter((c) => c.section === sec)
@@ -771,10 +715,7 @@ function CategoryPicker({ state, catalog, onClose, onSave }) {
               </p>
               <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {list.map((c) => (
-                  <label
-                    key={c.id}
-                    className="flex cursor-pointer items-center gap-3 py-2.5"
-                  >
+                  <label key={c.id} className="flex cursor-pointer items-center gap-3 py-2.5">
                     <input
                       type="checkbox"
                       checked={sel.includes(c.id)}

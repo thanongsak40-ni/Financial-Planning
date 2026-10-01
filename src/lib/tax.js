@@ -283,11 +283,13 @@ export function matchDeductionKey(name = '') {
 
 /**
  * สร้างค่าตั้งต้นจากข้อมูลที่ผู้ใช้มีอยู่แล้ว เปิดหน้ามาครั้งแรกจะได้ไม่ว่างเปล่า
- * - เงินได้: แยกหมวดรายรับเป็นก้อนตามประเภทที่เดาได้ ติ๊กทุกหมวดไว้ก่อน
- * - ค่าลดหย่อน: ดึงรายการที่เคยกรอกไว้มาจับคู่กับรายการมาตรฐาน
+ *
+ * ทุกช่องเป็น "ตัวเลขที่กรอกเอง" ส่วน link เก็บไว้แค่ว่าเคยดึงมาจากหมวดอะไร
+ * เพื่อให้กดดึงซ้ำได้ทีหลัง — ไม่ได้ผูกให้ค่าขยับตามหมวดเอง
  */
-export function buildDefaultConfig({ categories = [], taxItems = [] } = {}) {
+export function buildDefaultConfig({ categories = [], taxItems = [], totalOf = {} } = {}) {
   const incomeCats = categories.filter((c) => c.section === 'income')
+  const sum = (ids) => ids.reduce((s, id) => s + n(totalOf[id]), 0)
 
   const byType = new Map()
   for (const c of incomeCats) {
@@ -299,7 +301,8 @@ export function buildDefaultConfig({ categories = [], taxItems = [] } = {}) {
     id: `inc-${type}`,
     name: INCOME_TYPES[type].short,
     type,
-    source: { mode: 'categories', categoryIds: ids },
+    amount: sum(ids),
+    link: { categoryIds: ids },
     expense: { mode: 'auto' },
   }))
 
@@ -311,15 +314,18 @@ export function buildDefaultConfig({ categories = [], taxItems = [] } = {}) {
     else custom.push({ id: t.id, name: t.name, amount: n(t.amount) })
   }
 
-  const sources = Object.fromEntries(
-    Object.keys(deductions).map((k) => [k, { mode: 'manual' }]),
-  )
+  const withholdingTotal = taxItems
+    .filter((x) => x.type === 'withholding')
+    .reduce((s, x) => s + n(x.amount), 0)
 
   return {
-    incomes: incomes.length ? incomes : [{ id: 'inc-1', name: 'เงินได้', type: '40(2)', source: { mode: 'manual', amount: 0 }, expense: { mode: 'auto' } }],
+    incomes: incomes.length
+      ? incomes
+      : [{ id: 'inc-1', name: 'เงินได้', type: '40(2)', amount: 0, link: { categoryIds: [] }, expense: { mode: 'auto' } }],
     deductions,
-    deductionSources: sources,
+    deductionLinks: {},
     custom,
-    withholding: { mode: 'taxItems' },
+    withholding: withholdingTotal,
+    withholdingLink: { categoryIds: [] },
   }
 }
