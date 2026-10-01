@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import {
-  Plus, Pencil, Trash2, Info, TrendingDown, Download, RotateCcw, X, AlertTriangle, ChevronDown,
+  Plus, Pencil, Trash2, Info, TrendingDown, Download, RefreshCw, X, AlertTriangle, ChevronDown,
 } from 'lucide-react'
 import { useFinanceData, useUpsertRow, useDeleteRow, useSetSetting } from '../hooks/useData'
 import { useYear } from '../hooks/useYear'
@@ -9,7 +9,10 @@ import {
   PageHeader, Spinner, ErrorBox, Section, StatCard, Modal, Field, MoneyInput, ConfirmButton, Tabs,
 } from '../components/ui'
 import { yearGrid } from '../lib/calc'
-import { INCOME_TYPES, DEDUCTIONS, RETIRE_GROUP_CAP, computeTax, deductionScenarios, buildDefaultConfig } from '../lib/tax'
+import {
+  INCOME_TYPES, DEDUCTIONS, RETIRE_GROUP_CAP,
+  computeTax, deductionScenarios, buildDefaultConfig, normalizeConfig, incomeTotal,
+} from '../lib/tax'
 import { fmt0, fmtPct } from '../lib/format'
 
 const TYPE_LABEL = { deduction: 'ค่าลดหย่อน', withholding: 'ภาษีหัก ณ ที่จ่าย' }
@@ -80,7 +83,11 @@ export default function Tax() {
     } catch {
       /* ค่าเสียรูป — สร้างใหม่จากข้อมูลที่มี */
     }
-    setCfg(next ?? buildDefaultConfig({ categories: data.categories ?? [], taxItems, totalOf }))
+    const nameOf = (id) => catalog.find((c) => c.id === id)?.name ?? ''
+    setCfg(
+      normalizeConfig(next, { nameOf, totalOf }) ??
+        buildDefaultConfig({ categories: data.categories ?? [], taxItems, totalOf }),
+    )
   }
 
   const dirty = useRef(false)
@@ -99,7 +106,7 @@ export default function Tax() {
   const result = useMemo(() => {
     if (!cfg) return null
     return computeTax({
-      incomes: cfg.incomes ?? [],
+      incomes: (cfg.incomes ?? []).map((i) => ({ ...i, amount: incomeTotal(i) })),
       deductions: cfg.deductions ?? {},
       custom: cfg.custom ?? [],
       withholding: cfg.withholding ?? 0,
@@ -127,10 +134,37 @@ export default function Tax() {
     })
   }
 
+  /** ดึงยอดล่าสุดใส่ทุกช่องที่เคยผูกหมวดไว้ — บรรทัดที่พิมพ์เองไม่ถูกแตะ */
+  function refreshAll() {
+    let changed = 0
+    update((c) => {
+      for (const inc of c.incomes ?? []) {
+        for (const it of inc.items ?? []) {
+          if (!it.categoryId) continue
+          const fresh = totalOf[it.categoryId] ?? 0
+          if (Math.abs(fresh - (Number(it.amount) || 0)) >= 0.005) changed++
+          it.amount = fresh
+        }
+      }
+      for (const [key, link] of Object.entries(c.deductionLinks ?? {})) {
+        const fresh = sumOf(link?.categoryIds)
+        if (Math.abs(fresh - (Number(c.deductions?.[key]) || 0)) >= 0.005) changed++
+        c.deductions[key] = fresh
+      }
+      if ((c.withholdingLink?.categoryIds ?? []).length) {
+        const fresh = sumOf(c.withholdingLink.categoryIds)
+        if (Math.abs(fresh - (Number(c.withholding) || 0)) >= 0.005) changed++
+        c.withholding = fresh
+      }
+      return c
+    })
+    toast.success(changed ? `อัปเดต ${changed} ช่องจากข้อมูลล่าสุด` : 'ทุกช่องตรงกับข้อมูลล่าสุดอยู่แล้ว')
+  }
+
   function resetConfig() {
     dirty.current = true
     setCfg(buildDefaultConfig({ categories: data.categories ?? [], taxItems, totalOf }))
-    toast.info('ดึงข้อมูลที่บันทึกไว้มาใส่ใหม่ทั้งหมดแล้ว')
+    toast.info('สร้างรายการใหม่ทั้งหมดจากข้อมูลที่บันทึกไว้แล้ว')
   }
 
   return (
@@ -139,8 +173,8 @@ export default function Tax() {
         title={`แผนภาษี ปี ${year}`}
         subtitle="กรอกตัวเลขเองได้ทุกช่อง และกดปุ่มดึงเพื่อเอายอดจากที่บันทึกไว้มาเติม แล้วแก้ต่อได้ตามจริง"
       >
-        <button onClick={resetConfig} className="btn-outline">
-          <RotateCcw size={15} /> ดึงใหม่ทั้งหมด
+        <button onClick={refreshAll} className="btn-primary">
+          <RefreshCw size={15} /> ดึงยอดล่าสุด
         </button>
       </PageHeader>
 
@@ -206,19 +240,84 @@ export default function Tax() {
               <IncomeBlock
                 key={inc.id}
                 income={inc}
+                total={incomeTotal(inc)}
                 expense={result.rows[i]?.expense ?? 0}
-                linkNames={namesOf(inc.link?.categoryIds)}
-                linkTotal={sumOf(inc.link?.categoryIds)}
+                nameOf={(id) => catalog.find((c) => c.id === id)?.name ?? ''}
+                totalOf={totalOf}
                 onChange={(patch) => update((c) => { Object.assign(c.incomes[i], patch); return c })}
                 onRemove={() => update((c) => { c.incomes.splice(i, 1); return c })}
-                onPull={() =>
-                  pull({
-                    title: `ดึงยอดเข้าช่อง "${inc.name}"`,
-                    selected: inc.link?.categoryIds ?? [],
-                    onFill: (amount, ids) =>
-                      update((c) => { c.incomes[i].amount = amount; c.incomes[i].link = { categoryIds: ids }; return c }),
+                onItem={(j, patch) => update((c) => { Object.assign(c.incomes[i].items[j], patch); return c })}
+                onAddItem={() =>
+                  update((c) => {
+                    c.incomes[i].items = c.incomes[i].items ?? []
+                    c.incomes[i].items.push({ id: `it-${Date.now()}`, name: '', amount: 0, categoryId: null })
+                    return c
                   })
                 }
+                onRemoveItem={(j) => update((c) => { c.incomes[i].items.splice(j, 1); return c })}
+                /* ผูกหมวดให้บรรทัดเดียว แล้วดึงยอดมาใส่ทันที */
+                onLinkItem={(j) =>
+                  setPicker({
+                    title: 'เลือกหมวดให้รายการนี้',
+                    single: true,
+                    selected: cfg.incomes[i].items[j].categoryId ? [cfg.incomes[i].items[j].categoryId] : [],
+                    onPick: (ids) => {
+                      const id = ids[0]
+                      setPicker(null)
+                      if (!id) return
+                      update((c) => {
+                        const it = c.incomes[i].items[j]
+                        it.categoryId = id
+                        it.amount = totalOf[id] ?? 0
+                        if (!it.name.trim()) it.name = catalog.find((x) => x.id === id)?.name ?? ''
+                        return c
+                      })
+                      toast.success(`ดึงมาแล้ว ${fmt0(totalOf[id] ?? 0)} บาท — แก้ต่อได้เลย`)
+                    },
+                  })
+                }
+                /* เพิ่มทีละหลายบรรทัดจากหลายหมวด */
+                onAddFromCategories={() =>
+                  setPicker({
+                    title: `เพิ่มรายการเข้า "${inc.name}" จากหมวดที่บันทึกไว้`,
+                    selected: (inc.items ?? []).map((x) => x.categoryId).filter(Boolean),
+                    onPick: (ids) => {
+                      setPicker(null)
+                      update((c) => {
+                        const items = c.incomes[i].items ?? []
+                        // หมวดที่เคยเลือกแล้วเอาออก = ลบบรรทัดนั้น ส่วนบรรทัดที่พิมพ์เองไม่แตะ
+                        const kept = items.filter((x) => !x.categoryId || ids.includes(x.categoryId))
+                        for (const id of ids) {
+                          const found = kept.find((x) => x.categoryId === id)
+                          if (found) found.amount = totalOf[id] ?? 0
+                          else
+                            kept.push({
+                              id: `it-${id}`,
+                              name: catalog.find((x) => x.id === id)?.name ?? '',
+                              amount: totalOf[id] ?? 0,
+                              categoryId: id,
+                            })
+                        }
+                        c.incomes[i].items = kept
+                        return c
+                      })
+                      toast.success(`ดึงมา ${ids.length} รายการ — แก้ต่อได้เลย`)
+                    },
+                  })
+                }
+                onRefresh={() => {
+                  let n = 0
+                  update((c) => {
+                    for (const it of c.incomes[i].items ?? []) {
+                      if (!it.categoryId) continue
+                      const fresh = totalOf[it.categoryId] ?? 0
+                      if (Math.abs(fresh - (Number(it.amount) || 0)) >= 0.005) n++
+                      it.amount = fresh
+                    }
+                    return c
+                  })
+                  toast.success(n ? `อัปเดต ${n} รายการ` : 'ตรงกับข้อมูลล่าสุดอยู่แล้ว')
+                }}
               />
             ))}
           </div>
@@ -490,6 +589,19 @@ export default function Tax() {
           )}
         </Section>
 
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-800">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">สร้างรายการใหม่ทั้งหมด</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              ไล่สร้างก้อนเงินได้และรายการย่อยใหม่จากหมวดที่มีอยู่ตอนนี้ — ใช้เมื่อเพิ่มหมวดใหม่ในแผนการเงิน
+              <strong> ตัวเลขที่แก้เองไว้จะหายทั้งหมด</strong>
+            </p>
+          </div>
+          <ConfirmButton onConfirm={resetConfig} className="btn-outline shrink-0 !text-rose-600">
+            <RefreshCw size={15} /> สร้างใหม่
+          </ConfirmButton>
+        </div>
+
         <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
           <Info size={17} className="mt-px shrink-0" />
           <p>
@@ -570,9 +682,14 @@ function LinkHint({ names, total, current, onUse }) {
   )
 }
 
-function IncomeBlock({ income, expense, linkNames, linkTotal, onChange, onRemove, onPull }) {
+function IncomeBlock({
+  income, total, expense, nameOf, totalOf,
+  onChange, onRemove, onItem, onAddItem, onRemoveItem, onLinkItem, onAddFromCategories, onRefresh,
+}) {
   const meta = INCOME_TYPES[income.type] ?? INCOME_TYPES['40(8)']
   const expMode = income.expense?.mode ?? 'auto'
+  const items = income.items ?? []
+  const hasLink = items.some((it) => it.categoryId)
 
   return (
     <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
@@ -593,16 +710,73 @@ function IncomeBlock({ income, expense, linkNames, linkTotal, onChange, onRemove
         </button>
       </div>
 
+      {/* ---------- รายการย่อย ---------- */}
+      <div className="mt-2.5 space-y-2">
+        {items.length === 0 && (
+          <p className="rounded-lg bg-slate-50 px-3 py-3 text-center text-sm text-slate-400 dark:bg-slate-800/50 dark:text-slate-500">
+            ยังไม่มีรายการ — กด "ดึงจากหมวด" หรือ "เพิ่มรายการ"
+          </p>
+        )}
+        {items.map((it, j) => {
+          const linked = Boolean(it.categoryId)
+          const fresh = linked ? totalOf[it.categoryId] ?? 0 : 0
+          const stale = linked && Math.abs(fresh - (Number(it.amount) || 0)) >= 0.005
+          return (
+            <div key={it.id} className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/40">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  className="input min-w-0 flex-1 bg-white text-base dark:bg-slate-900"
+                  value={it.name}
+                  onChange={(e) => onItem(j, { name: e.target.value })}
+                  placeholder="ชื่อรายการ"
+                />
+                <div className="w-32 shrink-0">
+                  <MoneyInput value={it.amount ?? 0} onChange={(v) => onItem(j, { amount: v })} />
+                </div>
+                <button
+                  onClick={() => (linked ? onItem(j, { amount: fresh }) : onLinkItem(j))}
+                  className={`btn-ghost !p-2 ${stale ? '!text-indigo-600 dark:!text-indigo-400' : ''}`}
+                  title={linked ? `ดึงยอดล่าสุดจาก ${nameOf(it.categoryId)}` : 'ผูกกับหมวดแล้วดึงยอดมาใส่'}
+                  aria-label="ดึงยอด"
+                >
+                  {linked ? <RefreshCw size={15} /> : <Download size={15} />}
+                </button>
+                <button onClick={() => onRemoveItem(j)} className="btn-ghost !p-2 !text-rose-600" aria-label="ลบรายการ">
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 pl-1 text-xs text-slate-400 dark:text-slate-500">
+                <button
+                  onClick={() => onLinkItem(j)}
+                  className="cursor-pointer underline decoration-dotted underline-offset-2"
+                >
+                  {linked ? `จากหมวด: ${nameOf(it.categoryId)}` : 'ยังไม่ผูกหมวด — กดเพื่อผูก'}
+                </button>
+                {stale && (
+                  <span className="text-indigo-600 dark:text-indigo-400">
+                    ตอนนี้ยอดในสมุดเป็น <span className="num">{fmt0(fresh)}</span> — กดปุ่มรีเฟรชเพื่อใช้ยอดนี้
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-slate-500 dark:text-slate-400">จำนวนเงิน</span>
-        <div className="w-40">
-          <MoneyInput value={income.amount ?? 0} onChange={(v) => onChange({ amount: v })} />
-        </div>
-        <button onClick={onPull} className="btn-outline !py-1.5 text-xs">
+        <button onClick={onAddFromCategories} className="btn-outline !py-1.5 text-xs">
           <Download size={14} /> ดึงจากหมวด
         </button>
+        <button onClick={onAddItem} className="btn-outline !py-1.5 text-xs">
+          <Plus size={14} /> เพิ่มรายการ
+        </button>
+        {hasLink && (
+          <button onClick={onRefresh} className="btn-outline !py-1.5 text-xs">
+            <RefreshCw size={14} /> ดึงยอดล่าสุดทั้งก้อน
+          </button>
+        )}
+        <span className="num ml-auto font-semibold">รวม {fmt0(total)}</span>
       </div>
-      <LinkHint names={linkNames} total={linkTotal} current={income.amount ?? 0} onUse={() => onChange({ amount: linkTotal })} />
 
       <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
         <span className="text-xs text-slate-500 dark:text-slate-400">หักค่าใช้จ่าย</span>
@@ -680,7 +854,9 @@ function CategoryPicker({ state, catalog, onClose }) {
   }
   if (!state) return null
 
-  const toggle = (id) => setSel((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
+  const single = Boolean(state.single)
+  const toggle = (id) =>
+    setSel((p) => (single ? (p[0] === id ? [] : [id]) : p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
   const total = sel.reduce((s, id) => s + (catalog.find((c) => c.id === id)?.total ?? 0), 0)
 
   return (
@@ -692,7 +868,8 @@ function CategoryPicker({ state, catalog, onClose }) {
       footer={
         <>
           <span className="mr-auto self-center text-sm text-slate-500 dark:text-slate-400">
-            เลือก {sel.length} หมวด · รวม <span className="num font-semibold">{fmt0(total)}</span>
+            {single ? 'เลือกได้ 1 หมวด' : `เลือก ${sel.length} หมวด`} · รวม{' '}
+            <span className="num font-semibold">{fmt0(total)}</span>
           </span>
           <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
           <button onClick={() => state.onPick(sel)} className="btn-primary">
@@ -717,7 +894,8 @@ function CategoryPicker({ state, catalog, onClose }) {
                 {list.map((c) => (
                   <label key={c.id} className="flex cursor-pointer items-center gap-3 py-2.5">
                     <input
-                      type="checkbox"
+                      type={single ? 'radio' : 'checkbox'}
+                      name={single ? 'cat-single' : undefined}
                       checked={sel.includes(c.id)}
                       onChange={() => toggle(c.id)}
                       className="size-4 shrink-0 accent-indigo-600"

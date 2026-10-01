@@ -284,25 +284,25 @@ export function matchDeductionKey(name = '') {
 /**
  * สร้างค่าตั้งต้นจากข้อมูลที่ผู้ใช้มีอยู่แล้ว เปิดหน้ามาครั้งแรกจะได้ไม่ว่างเปล่า
  *
- * ทุกช่องเป็น "ตัวเลขที่กรอกเอง" ส่วน link เก็บไว้แค่ว่าเคยดึงมาจากหมวดอะไร
- * เพื่อให้กดดึงซ้ำได้ทีหลัง — ไม่ได้ผูกให้ค่าขยับตามหมวดเอง
+ * เงินได้แต่ละก้อนเก็บเป็น "รายการย่อย" หนึ่งหมวดต่อหนึ่งบรรทัด
+ * จะได้เห็นว่ายอดมาจากไหนบ้าง และแก้ทีละบรรทัดได้
+ * categoryId บอกว่าบรรทัดนั้นผูกกับหมวดไหน ใช้ตอนกดดึงยอดล่าสุด
+ * บรรทัดที่ categoryId เป็น null คือบรรทัดที่ผู้ใช้เพิ่มเอง ไม่แตะตอนดึงใหม่
  */
 export function buildDefaultConfig({ categories = [], taxItems = [], totalOf = {} } = {}) {
   const incomeCats = categories.filter((c) => c.section === 'income')
-  const sum = (ids) => ids.reduce((s, id) => s + n(totalOf[id]), 0)
 
   const byType = new Map()
   for (const c of incomeCats) {
     const t = guessType(c.name)
     if (!byType.has(t)) byType.set(t, [])
-    byType.get(t).push(c.id)
+    byType.get(t).push(c)
   }
-  const incomes = [...byType.entries()].map(([type, ids]) => ({
+  const incomes = [...byType.entries()].map(([type, cats]) => ({
     id: `inc-${type}`,
     name: INCOME_TYPES[type].short,
     type,
-    amount: sum(ids),
-    link: { categoryIds: ids },
+    items: cats.map((c) => ({ id: `it-${c.id}`, name: c.name, amount: n(totalOf[c.id]), categoryId: c.id })),
     expense: { mode: 'auto' },
   }))
 
@@ -321,11 +321,40 @@ export function buildDefaultConfig({ categories = [], taxItems = [], totalOf = {
   return {
     incomes: incomes.length
       ? incomes
-      : [{ id: 'inc-1', name: 'เงินได้', type: '40(2)', amount: 0, link: { categoryIds: [] }, expense: { mode: 'auto' } }],
+      : [{ id: 'inc-1', name: 'เงินได้', type: '40(2)', items: [], expense: { mode: 'auto' } }],
     deductions,
     deductionLinks: {},
     custom,
     withholding: withholdingTotal,
     withholdingLink: { categoryIds: [] },
   }
+}
+
+/** ยอดรวมของก้อนเงินได้ = ผลรวมรายการย่อย */
+export function incomeTotal(income) {
+  return (income.items ?? []).reduce((s, it) => s + n(it.amount), 0)
+}
+
+/**
+ * อัปเกรดค่าที่บันทึกไว้จากรูปแบบเก่า (ก้อนละตัวเลขเดียว) ให้เป็นรายการย่อย
+ * เก็บไว้เพราะมีคนบันทึกค่ารูปแบบเก่าไว้แล้ว ลบทิ้งไม่ได้
+ */
+export function normalizeConfig(cfg, { nameOf = () => '', totalOf = {} } = {}) {
+  if (!cfg) return cfg
+  const incomes = (cfg.incomes ?? []).map((inc) => {
+    if (Array.isArray(inc.items)) return inc
+    const ids = inc.link?.categoryIds ?? []
+    const items =
+      ids.length > 1
+        ? ids.map((id) => ({ id: `it-${id}`, name: nameOf(id), amount: n(totalOf[id]), categoryId: id }))
+        : [{
+            id: `it-${inc.id}`,
+            name: ids.length ? nameOf(ids[0]) : inc.name,
+            amount: n(inc.amount),
+            categoryId: ids[0] ?? null,
+          }]
+    const { link, amount, ...rest } = inc
+    return { ...rest, items }
+  })
+  return { ...cfg, incomes }
 }
