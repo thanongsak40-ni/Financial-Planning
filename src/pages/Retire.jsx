@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, X, ImagePlus, Loader2, Sparkles, GripVertical } from 'lucide-react'
+import { Plus, X, ImagePlus, Loader2, Sparkles, GripVertical, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useFinanceData, useSetSetting } from '../hooks/useData'
@@ -259,12 +259,21 @@ function GroupCard({ group, first, last, onChange, onRemove, onMove, onItem, onA
         >
           {group.emoji || '🎯'}
         </button>
-        <input
-          className="min-w-0 flex-1 rounded-lg bg-transparent px-1 py-1.5 text-base font-semibold transition focus:bg-slate-50 focus:outline-none dark:focus:bg-slate-800/60"
-          value={group.title}
-          onChange={(e) => onChange({ title: e.target.value })}
-          placeholder="ชื่อหมวด เช่น ที่อยู่อาศัย"
-        />
+        {/* เส้นประใต้ตัวอักษร + ดินสอ บอกว่าพิมพ์ทับได้ — เดิมเป็นช่องกรอกอยู่แล้ว
+            แต่หน้าตาเหมือนข้อความธรรมดา ไม่มีอะไรบอกว่าแก้ได้ */}
+        <label className="relative min-w-0 flex-1">
+          <input
+            className="w-full rounded-lg bg-transparent px-1.5 py-1.5 pr-7 text-base font-semibold underline decoration-slate-300 decoration-dashed underline-offset-4 transition focus:bg-slate-50 focus:no-underline focus:outline-none dark:decoration-slate-600 dark:focus:bg-slate-800/60"
+            value={group.title}
+            onChange={(e) => onChange({ title: e.target.value })}
+            placeholder="ชื่อหมวด เช่น ที่อยู่อาศัย"
+            aria-label="ชื่อหมวด"
+          />
+          <Pencil
+            size={12}
+            className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-slate-300 dark:text-slate-600"
+          />
+        </label>
         <div className="flex shrink-0 items-center">
           <button
             onClick={() => onMove(-1)}
@@ -299,7 +308,7 @@ function GroupCard({ group, first, last, onChange, onRemove, onMove, onItem, onA
           <li key={it.id} className="flex items-center gap-1.5 py-1.5">
             <span className="shrink-0 text-slate-300 dark:text-slate-600">•</span>
             <input
-              className="min-w-0 flex-1 rounded-lg bg-transparent px-1 py-2 text-base transition focus:bg-slate-50 focus:outline-none dark:focus:bg-slate-800/60"
+              className="min-w-0 flex-1 rounded-lg bg-transparent px-1.5 py-2 text-base underline decoration-slate-200 decoration-dashed underline-offset-4 transition focus:bg-slate-50 focus:no-underline focus:outline-none dark:decoration-slate-700 dark:focus:bg-slate-800/60"
               value={it.text}
               onChange={(e) => onItem(ii, { text: e.target.value })}
               placeholder="เช่น บ้านไม่ใหญ่มาก ใจกลางเมือง 1 ไร่"
@@ -308,7 +317,7 @@ function GroupCard({ group, first, last, onChange, onRemove, onMove, onItem, onA
               <MoneyInput
                 value={it.amount ?? 0}
                 onChange={(v) => onItem(ii, { amount: v })}
-                className="!border-transparent !bg-transparent focus:!border-indigo-500 focus:!bg-white dark:focus:!bg-slate-950"
+                className="!border-transparent !bg-slate-50 focus:!border-indigo-500 focus:!bg-white dark:!bg-slate-800/40 dark:focus:!bg-slate-950"
                 placeholder="—"
               />
             </div>
