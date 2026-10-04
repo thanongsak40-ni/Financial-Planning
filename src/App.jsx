@@ -17,6 +17,7 @@ import Goals from './pages/Goals'
 import Joy from './pages/Joy'
 import Loans from './pages/Loans'
 import Calculator from './pages/Calculator'
+import Retire from './pages/Retire'
 import Tax from './pages/Tax'
 import Settings from './pages/Settings'
 
@@ -61,6 +62,7 @@ export default function App() {
                   <Route path="joy" element={<Joy />} />
                   <Route path="loans" element={<Loans />} />
                   <Route path="calculator" element={<Calculator />} />
+                  <Route path="retire" element={<Retire />} />
                   <Route path="tax" element={<Tax />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
