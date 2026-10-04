@@ -26,7 +26,7 @@ const NAV = [
     { to: '/loans', icon: HandCoins, label: 'เงินค้างรับ' },
   ]},
   { group: 'วางแผน', items: [
-    { to: '/retire', icon: Palmtree, label: 'ชีวิตหลังเกษียณ' },
+    { to: '/retire', icon: Palmtree, label: 'ชีวิตหลังอิสรภาพทางการเงิน' },
     { to: '/calculator', icon: Calculator, label: 'คำนวณผลตอบแทน' },
     { to: '/goals', icon: CheckSquare, label: 'เป้าหมายปี' },
     { to: '/joy', icon: Smile, label: 'คลังความสุข' },

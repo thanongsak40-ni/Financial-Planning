@@ -6,14 +6,14 @@ import { useAuth } from '../hooks/useAuth'
 import { useFinanceData, useSetSetting } from '../hooks/useData'
 import { useToast } from '../components/Toast'
 import { PageHeader, Spinner, ErrorBox, MoneyInput } from '../components/ui'
-import { EMOJI_CHOICES, defaultBoard, newId, shrinkImage } from '../lib/retire'
+import { EMOJI_CHOICES, defaultBoard, makeStats, newId, shrinkImage } from '../lib/retire'
 import { fmt0 } from '../lib/format'
 
 const SETTING_KEY = 'retire_board'
 const BUCKET = 'vision'
 
 /**
- * ชีวิตหลังเกษียณ — กระดานบันทึกภาพชีวิตที่อยากได้
+ * ชีวิตหลังอิสรภาพทางการเงิน — กระดานบันทึกภาพชีวิตที่อยากได้
  *
  * ไม่มีการคำนวณใด ๆ ทั้งหน้า ทุกอย่างคือสิ่งที่ผู้ใช้กรอกเอง
  * บนสุดเป็นรูปภาพไว้ให้เห็นภาพจริง ๆ ข้างล่างเป็นรายการแยกหมวด
@@ -45,7 +45,8 @@ export default function Retire() {
     } catch {
       /* ค่าเสียรูป — เริ่มใหม่ */
     }
-    setBoard(next?.groups ? next : defaultBoard())
+    // กระดานที่บันทึกไว้ก่อนมีแถบตัวเลข ให้เติมช่องตั้งต้นให้
+    setBoard(next?.groups ? { stats: makeStats(), ...next } : defaultBoard())
   }
 
   useEffect(() => {
@@ -130,7 +131,7 @@ export default function Retire() {
   return (
     <>
       <PageHeader
-        title="ชีวิตหลังเกษียณ"
+        title="ชีวิตหลังอิสรภาพทางการเงิน"
         subtitle="ภาพและรายการของชีวิตที่อยากได้ — เขียนไว้กันลืม ไม่มีการคำนวณ ใส่เองทั้งหมด"
       />
 
@@ -234,21 +235,76 @@ export default function Retire() {
                     </div>
                   </figure>
                 ))}
-
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  disabled={busy}
-                  className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 text-slate-400 transition hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-500"
-                >
-                  {busy ? <Loader2 size={20} className="animate-spin" /> : <ImagePlus size={20} />}
-                  <span className="text-xs">เพิ่มรูป</span>
-                </button>
               </div>
               <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
                 แตะรูปเพื่อดูเต็มจอ · กดดาวเพื่อตั้งเป็นรูปหลัก
               </p>
             </>
           )}
+        </section>
+
+        {/* ---------- ตัวเลขสำคัญ ---------- */}
+        <section className="card-pad">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="font-semibold text-slate-900 dark:text-slate-100">ตัวเลขสำคัญ</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                ใส่เองทั้งหมด เปลี่ยนชื่อช่องและหน่วยได้ ไม่มีการคำนวณให้
+              </p>
+            </div>
+            <button
+              onClick={() =>
+                update((b) => {
+                  b.stats = [...(b.stats ?? []), { id: newId('s'), label: '', value: 0, unit: '' }]
+                  return b
+                })
+              }
+              className="btn-outline !py-1.5 text-xs"
+            >
+              <Plus size={14} /> เพิ่มช่อง
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+            {(board.stats ?? []).map((st, si) => (
+              <div
+                key={st.id}
+                className="group relative rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/50"
+              >
+                <input
+                  className="w-full rounded bg-transparent text-xs text-slate-500 underline decoration-slate-300 decoration-dashed underline-offset-2 transition focus:bg-white focus:no-underline focus:outline-none dark:text-slate-400 dark:decoration-slate-600 dark:focus:bg-slate-900"
+                  value={st.label}
+                  onChange={(e) => update((b) => { b.stats[si].label = e.target.value; return b })}
+                  placeholder="ชื่อช่อง"
+                  aria-label="ชื่อช่อง"
+                />
+                <div className="mt-1 flex items-baseline gap-1">
+                  <div className="min-w-0 flex-1">
+                    <MoneyInput
+                      value={st.value ?? 0}
+                      onChange={(v) => update((b) => { b.stats[si].value = v; return b })}
+                      className="!border-transparent !bg-transparent !px-0 !text-left !text-lg !font-bold focus:!border-indigo-500 focus:!bg-white focus:!px-2 dark:focus:!bg-slate-900"
+                      placeholder="0"
+                    />
+                  </div>
+                  <input
+                    className="w-10 shrink-0 rounded bg-transparent text-xs text-slate-400 transition focus:bg-white focus:outline-none dark:focus:bg-slate-900"
+                    value={st.unit ?? ''}
+                    onChange={(e) => update((b) => { b.stats[si].unit = e.target.value; return b })}
+                    placeholder="หน่วย"
+                    aria-label="หน่วย"
+                  />
+                </div>
+                <button
+                  onClick={() => update((b) => { b.stats.splice(si, 1); return b })}
+                  className="hover-reveal absolute top-1 right-1 grid size-6 cursor-pointer place-items-center rounded-md text-slate-400 transition hover:text-rose-600 active:scale-90"
+                  aria-label="ลบช่องนี้"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* ---------- รายการแยกหมวด ---------- */}

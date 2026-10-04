@@ -24,7 +24,7 @@ const MORE = [
   { to: '/accounts', icon: Wallet, label: 'บัญชีธนาคาร' },
   { to: '/balance', icon: Landmark, label: 'ความมั่งคั่งสุทธิ' },
   { to: '/loans', icon: HandCoins, label: 'เงินค้างรับ' },
-  { to: '/retire', icon: Palmtree, label: 'ชีวิตหลังเกษียณ' },
+  { to: '/retire', icon: Palmtree, label: 'ชีวิตหลังอิสรภาพทางการเงิน' },
   { to: '/calculator', icon: Calculator, label: 'คำนวณผลตอบแทน' },
   { to: '/goals', icon: CheckSquare, label: 'เป้าหมายปี' },
   { to: '/joy', icon: Smile, label: 'คลังความสุข' },

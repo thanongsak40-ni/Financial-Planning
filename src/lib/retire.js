@@ -1,5 +1,5 @@
 /**
- * เครื่องมือของหน้า "ชีวิตหลังเกษียณ"
+ * เครื่องมือของหน้า "ชีวิตหลังอิสรภาพทางการเงิน"
  *
  * หน้านี้ไม่มีการคำนวณใด ๆ ทั้งสิ้น ข้อมูลทุกอย่างมาจากที่ผู้ใช้กรอกเอง
  * ไฟล์นี้จึงเหลือแค่ตัวเลือกไอคอน หมวดตั้งต้น และตัวย่อรูปก่อนอัปโหลด
@@ -23,9 +23,24 @@ export function newId(prefix = 'x') {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 }
 
+/** ช่องตัวเลขสำคัญที่อยู่ระหว่างรูปกับรายการ — เปลี่ยนชื่อ เพิ่ม ลบได้ */
+export const DEFAULT_STATS = [
+  { label: 'อายุที่ต้องการอิสรภาพการเงิน', unit: 'ปี' },
+  { label: 'ระยะเวลาที่เหลือ', unit: 'ปี' },
+  { label: 'เงินออมและเงินลงทุนที่ต้องมี', unit: 'บาท' },
+  { label: 'จำนวนเงินปัจจุบัน', unit: 'บาท' },
+  { label: 'ต้องออมและลงทุนต่อเดือน', unit: 'บาท' },
+  { label: 'อัตราผลตอบแทนที่ต้องทำต่อปี', unit: '%' },
+]
+
+export function makeStats() {
+  return DEFAULT_STATS.map((x) => ({ id: newId('s'), value: 0, ...x }))
+}
+
 export function defaultBoard() {
   return {
     images: [],
+    stats: makeStats(),
     groups: DEFAULT_GROUPS.map((g) => ({ id: newId('g'), ...g, items: [] })),
   }
 }
