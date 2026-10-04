@@ -310,7 +310,7 @@ export default function Retire() {
         {/* ---------- รายการแยกหมวด ---------- */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            ต้องมีอะไรบ้างในชีวิตหลังเกษียณ — แยกเป็นหมวด เพิ่มลบได้ตามใจ
+            ต้องมีอะไรบ้างในชีวิตหลังอิสรภาพทางการเงิน — แยกเป็นหมวด เพิ่มลบได้ตามใจ
           </p>
           <button
             onClick={() =>
