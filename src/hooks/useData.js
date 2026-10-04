@@ -526,6 +526,17 @@ export function useWipeMyData() {
         throw new Error(`${t}: ${error.message}`)
       }
     }
+
+    // รูปในหน้าชีวิตหลังเกษียณอยู่ในที่เก็บไฟล์ ไม่ใช่ตาราง ต้องลบแยก
+    // ถังยังไม่ถูกสร้างก็ข้ามไป ไม่ให้ล้มทั้งกระบวนการ
+    try {
+      const { data: files } = await supabase.storage.from('vision').list(userId, { limit: 1000 })
+      if (files?.length) {
+        await supabase.storage.from('vision').remove(files.map((f) => `${userId}/${f.name}`))
+      }
+    } catch {
+      /* ไม่มีถังเก็บรูป ข้าม */
+    }
     return true
   })
 }
