@@ -269,7 +269,7 @@ export default function Tax() {
                         const it = c.incomes[i].items[j]
                         it.categoryId = id
                         it.amount = totalOf[id] ?? 0
-                        if (!it.name.trim()) it.name = catalog.find((x) => x.id === id)?.name ?? ''
+                        if (!it.name?.trim()) it.name = catalog.find((x) => x.id === id)?.name ?? ''
                         return c
                       })
                       toast.success(`ดึงมาแล้ว ${fmt0(totalOf[id] ?? 0)} บาท — แก้ต่อได้เลย`)
@@ -913,21 +913,33 @@ function CategoryPicker({ state, catalog, onClose }) {
   )
 }
 
+/** แปลงแถวในฐานข้อมูลเป็นค่าในฟอร์ม — ใช้ทั้งตอนตั้งต้นและตอนเปิดกล่องใหม่ */
+const itemForm = (row) => ({
+  name: row?.name ?? '',
+  amount: Number(row?.amount) || 0,
+  type: row?.type ?? 'deduction',
+})
+
 function ItemModal({ state, year, onClose, onSave, onDelete }) {
-  const [f, setF] = useState({})
+  // ตั้งต้นด้วยรูปทรงที่ครบทุกคีย์ ไม่ใช่ {} — React จะรันรอบ render ปัจจุบัน
+  // จนจบก่อนค่อยสนใจ setState ที่สั่งระหว่าง render รอบนั้นจึงยังเห็นค่าเก่า
+  // ถ้าตั้งต้นเป็น {} แล้วมีที่ไหนอ่าน f.name.trim() ตอน render จะพังทันที
+  const [f, setF] = useState(() => itemForm(state))
   const last = useRef(null)
 
   if (state && state !== last.current) {
     last.current = state
-    setF({ name: state.name ?? '', amount: Number(state.amount) || 0, type: state.type ?? 'deduction' })
+    setF(itemForm(state))
   }
   if (!state) return null
+
+  const valid = Boolean(f.name?.trim())
 
   return (
     <Modal
       open
       onClose={onClose}
-      title={state.id ? 'แก้ไขรายการ' : `เพิ่ม${TYPE_LABEL[f.type]}`}
+      title={state.id ? 'แก้ไขรายการ' : `เพิ่ม${TYPE_LABEL[f.type] ?? 'รายการ'}`}
       footer={
         <>
           {state.id && (
@@ -937,8 +949,8 @@ function ItemModal({ state, year, onClose, onSave, onDelete }) {
           )}
           <button onClick={onClose} className="btn-ghost">ยกเลิก</button>
           <button
-            onClick={() => f.name.trim() && onSave({ year, type: f.type, name: f.name.trim(), amount: f.amount }, state.id)}
-            disabled={!f.name.trim()}
+            onClick={() => valid && onSave({ year, type: f.type, name: f.name.trim(), amount: f.amount }, state.id)}
+            disabled={!valid}
             className="btn-primary"
           >
             บันทึก
@@ -961,13 +973,13 @@ function ItemModal({ state, year, onClose, onSave, onDelete }) {
           <input
             autoFocus
             className="input text-base"
-            value={f.name}
+            value={f.name ?? ''}
             onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
             placeholder={f.type === 'deduction' ? 'เช่น ประกันชีวิต AIA' : 'เช่น หัก ณ ที่จ่าย งานวิจัย ม.ค.'}
           />
         </Field>
         <Field label="จำนวนเงิน (บาท)">
-          <MoneyInput value={f.amount} onChange={(v) => setF((p) => ({ ...p, amount: v }))} />
+          <MoneyInput value={f.amount ?? 0} onChange={(v) => setF((p) => ({ ...p, amount: v }))} />
         </Field>
       </div>
     </Modal>

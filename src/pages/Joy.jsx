@@ -251,7 +251,8 @@ function JoyRow({ joy, onEdit }) {
 }
 
 function JoyModal({ state, feelings, onClose, onSave, onDelete }) {
-  const [f, setF] = useState({})
+  // ตั้งต้นให้มีคีย์ครบ กันกรณีมีที่ไหนอ่านค่าตอน render ก่อน setF จะมีผล
+  const [f, setF] = useState({ name: '', feeling: '', cost: 0, duration: 'short', solo: true, note: '' })
   const [last, setLast] = useState(null)
 
   if (state && state !== last) {
