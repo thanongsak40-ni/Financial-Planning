@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, X, ImagePlus, Loader2, Sparkles, GripVertical, Pencil } from 'lucide-react'
+import { Plus, X, ImagePlus, Loader2, Sparkles, GripVertical, Pencil, Star, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useFinanceData, useSetSetting } from '../hooks/useData'
@@ -31,6 +31,7 @@ export default function Retire() {
   const [board, setBoard] = useState(null)
   const [busy, setBusy] = useState(false)
   const [storageReady, setStorageReady] = useState(true)
+  const [viewing, setViewing] = useState(null) // ดัชนีรูปที่เปิดดูเต็มจอ
   const loaded = useRef(false)
   const dirty = useRef(false)
   const fileRef = useRef(null)
@@ -107,6 +108,17 @@ export default function Retire() {
     }
   }
 
+  /** ย้ายรูปนี้ไปอยู่ตำแหน่งแรก = กลายเป็นรูปหลักของอัลบั้ม */
+  function makeMain(index) {
+    update((b) => {
+      const list = b.images ?? []
+      const [moved] = list.splice(index, 1)
+      list.unshift(moved)
+      b.images = list
+      return b
+    })
+  }
+
   async function removeImage(path) {
     update((b) => { b.images = (b.images ?? []).filter((p) => p !== path); return b })
     await supabase.storage.from(BUCKET).remove([path])
@@ -171,24 +183,71 @@ export default function Retire() {
               <span className="text-sm">ยังไม่มีรูป — แตะเพื่อเพิ่ม</span>
             </button>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {paths.map((p) => (
-                <div key={p} className="group relative overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-                  {urls[p] ? (
-                    <img src={urls[p]} alt="" loading="lazy" className="aspect-[4/3] w-full object-cover" />
-                  ) : (
-                    <div className="skeleton aspect-[4/3] w-full" />
-                  )}
-                  <button
-                    onClick={() => removeImage(p)}
-                    className="hover-reveal absolute top-1.5 right-1.5 grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-900/70 text-white transition active:scale-90"
-                    aria-label="ลบรูปนี้"
+            <>
+              {/* อัลบั้มแบบโมเสก — รูปแรกเป็นรูปหลัก กินพื้นที่ 2x2
+                  ที่เหลือเรียงรอบ ๆ ใบละช่อง ความสูงแถวคงที่ รูปจึงต่อกันพอดี
+                  ไม่เว้นช่องว่างแบบตารางรูปขนาดเท่ากันทั้งหมด */}
+              <div className="grid auto-rows-[88px] grid-cols-2 gap-2 sm:auto-rows-[120px] sm:grid-cols-3 lg:auto-rows-[140px] lg:grid-cols-4">
+                {paths.map((p, i) => (
+                  <figure
+                    key={p}
+                    className={`group relative overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 ${
+                      i === 0 ? 'col-span-2 row-span-2' : ''
+                    }`}
                   >
-                    <X size={15} />
-                  </button>
-                </div>
-              ))}
-            </div>
+                    {urls[p] ? (
+                      <button
+                        onClick={() => setViewing(i)}
+                        className="block h-full w-full cursor-zoom-in"
+                        aria-label="ดูรูปใหญ่"
+                      >
+                        <img src={urls[p]} alt="" loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+                      </button>
+                    ) : (
+                      <div className="skeleton h-full w-full" />
+                    )}
+
+                    {i === 0 && (
+                      <span className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-slate-900/60 px-2 py-0.5 text-[11px] font-medium text-white">
+                        รูปหลัก
+                      </span>
+                    )}
+
+                    <div className="hover-reveal absolute top-1.5 right-1.5 flex gap-1 transition">
+                      {i !== 0 && (
+                        <button
+                          onClick={() => makeMain(i)}
+                          className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-900/70 text-white transition active:scale-90"
+                          title="ตั้งเป็นรูปหลัก"
+                          aria-label="ตั้งเป็นรูปหลัก"
+                        >
+                          <Star size={14} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeImage(p)}
+                        className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-900/70 text-white transition active:scale-90"
+                        aria-label="ลบรูปนี้"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  </figure>
+                ))}
+
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={busy}
+                  className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 text-slate-400 transition hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-500"
+                >
+                  {busy ? <Loader2 size={20} className="animate-spin" /> : <ImagePlus size={20} />}
+                  <span className="text-xs">เพิ่มรูป</span>
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                แตะรูปเพื่อดูเต็มจอ · กดดาวเพื่อตั้งเป็นรูปหลัก
+              </p>
+            </>
           )}
         </section>
 
@@ -240,11 +299,85 @@ export default function Retire() {
           </p>
         )}
       </div>
+
+      <Lightbox
+        index={viewing}
+        paths={paths}
+        urls={urls}
+        onClose={() => setViewing(null)}
+        onMove={(d) => setViewing((i) => (i === null ? null : (i + d + paths.length) % paths.length))}
+      />
     </>
   )
 }
 
 // ---------------------------------------------------------------------------
+
+/** ดูรูปเต็มจอ — ปิดด้วย Esc หรือแตะพื้นหลัง เลื่อนด้วยลูกศร */
+function Lightbox({ index, paths, urls, onClose, onMove }) {
+  useEffect(() => {
+    if (index === null) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose()
+      else if (e.key === 'ArrowLeft') onMove(-1)
+      else if (e.key === 'ArrowRight') onMove(1)
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [index, onClose, onMove])
+
+  if (index === null) return null
+  const url = urls[paths[index]]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
+      <button className="absolute inset-0 cursor-zoom-out" onClick={onClose} aria-label="ปิด" />
+
+      {url && (
+        <img
+          src={url}
+          alt=""
+          className="animate-in relative max-h-full max-w-full rounded-xl object-contain shadow-2xl"
+        />
+      )}
+
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 grid size-10 cursor-pointer place-items-center rounded-xl bg-white/15 text-white backdrop-blur transition active:scale-90"
+        aria-label="ปิด"
+      >
+        <X size={20} />
+      </button>
+
+      {paths.length > 1 && (
+        <>
+          <button
+            onClick={() => onMove(-1)}
+            className="absolute left-2 grid size-11 cursor-pointer place-items-center rounded-full bg-white/15 text-white backdrop-blur transition active:scale-90 sm:left-4"
+            aria-label="รูปก่อนหน้า"
+          >
+            <ChevronLeft size={22} />
+          </button>
+          <button
+            onClick={() => onMove(1)}
+            className="absolute right-2 grid size-11 cursor-pointer place-items-center rounded-full bg-white/15 text-white backdrop-blur transition active:scale-90 sm:right-4"
+            aria-label="รูปถัดไป"
+          >
+            <ChevronRight size={22} />
+          </button>
+          <span className="num absolute bottom-4 rounded-lg bg-white/15 px-3 py-1 text-sm text-white backdrop-blur">
+            {index + 1} / {paths.length}
+          </span>
+        </>
+      )}
+    </div>
+  )
+}
 
 function GroupCard({ group, first, last, onChange, onRemove, onMove, onItem, onAddItem, onRemoveItem }) {
   const [pickEmoji, setPickEmoji] = useState(false)
