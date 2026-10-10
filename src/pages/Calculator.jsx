@@ -4,7 +4,7 @@ import { useFinanceData, useSetSetting } from '../hooks/useData'
 import { PageHeader, Spinner, ErrorBox, Section, StatCard, Field, MoneyInput, Tabs, ProgressBar } from '../components/ui'
 import { ChartCard, StackedArea, DataTable } from '../components/charts'
 import { useChartColors } from '../lib/chartTheme'
-import { compoundGrowth, coopDividendPlan, sharesNeededFor, solveMonthlyForDividend } from '../lib/calc'
+import { compoundGrowth, coopDividendPlan, sharesNeededFor, solveMonthlyForDividend, MONTHS, MONTHS_FULL } from '../lib/calc'
 import { fmt0, fmtPct } from '../lib/format'
 
 /**
@@ -20,8 +20,13 @@ import { fmt0, fmtPct } from '../lib/format'
 
 const SETTING_KEY = 'calc_inputs'
 
+const now = new Date()
+
 const DEFAULTS = {
   mode: 'compound',
+  // จุดเริ่มต้นของแผน — ใช้ร่วมกันทั้งสองโหมด
+  startMonth: now.getMonth() + 1,
+  startYear: now.getFullYear(),
   // ทบต้น
   principal: 500000,
   contribution: 10000,
@@ -47,6 +52,37 @@ const RATE_PRESETS = [
   { label: '7%', value: 7 },
   { label: '10%', value: 10 },
 ]
+
+/** เดือน/ปี ของสิ้นปีที่ n นับจากจุดเริ่มต้น — ครบปีพอดีจึงเป็นเดือนเดิม */
+const periodLabel = (f, n) => `${MONTHS[(f.startMonth ?? 1) - 1]} ${(f.startYear ?? now.getFullYear()) + n}`
+const calendarYear = (f, n) => String((f.startYear ?? now.getFullYear()) + n)
+
+/** เลือกเดือนและปีที่จะเริ่ม — แทนการนับเป็น "ปีที่ 1, 2, 3" ลอย ๆ */
+function StartDate({ f, set }) {
+  return (
+    <div className="flex gap-2">
+      <select
+        className="input w-auto min-w-0 flex-1 text-base"
+        value={f.startMonth ?? 1}
+        onChange={(e) => set('startMonth')(Number(e.target.value))}
+        aria-label="เดือนที่เริ่ม"
+      >
+        {MONTHS_FULL.map((m, i) => (
+          <option key={m} value={i + 1}>{m}</option>
+        ))}
+      </select>
+      <input
+        type="number"
+        min={1900}
+        max={2200}
+        className="input num w-24 shrink-0 text-right text-base"
+        value={f.startYear ?? now.getFullYear()}
+        onChange={(e) => set('startYear')(Number(e.target.value))}
+        aria-label="ปีที่เริ่ม"
+      />
+    </div>
+  )
+}
 
 /** ปุ่มลัดใส่ตัวเลขเร็ว ๆ — เป้าสัมผัสใหญ่พอสำหรับนิ้ว */
 function Chips({ options, value, onChange, className = 'mt-2' }) {
@@ -219,7 +255,7 @@ export default function Calculator() {
 function CompoundView({ f, set, growth, annualContribution, colors }) {
   const perMonth = f.contributionPer === 'month'
   const chartData = growth.rows.map((r) => ({
-    label: r.label,
+    label: calendarYear(f, r.year),
     invested: Math.round(r.invested),
     profit: Math.round(Math.max(0, r.profit)),
   }))
@@ -230,7 +266,7 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
         {/* subgrid — สี่ช่องนี้ใช้เส้นแถวชุดเดียวกับตารางแม่ หัวข้อ/ช่องกรอก/ปุ่มลัด
             จึงอยู่ระดับเดียวกันเป๊ะ ไม่ว่าหัวข้อฝั่งไหนจะมีปุ่มสลับอยู่ด้วยหรือไม่
             (เดิมกะความสูงเอาแล้วคลาดกัน 4px เพราะปุ่มสลับสูงกว่าตัวอักษร) */}
-        <div className="grid gap-x-5 gap-y-5 lg:grid-cols-2 lg:grid-rows-[repeat(6,auto)]">
+        <div className="grid gap-x-5 gap-y-5 lg:grid-cols-2 lg:grid-rows-[repeat(9,auto)]">
           <div className="grid content-start gap-2 lg:row-span-3 lg:grid-rows-subgrid">
             <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
               <span className="label mb-0">เงินต้น (บาท)</span>
@@ -321,6 +357,16 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
               ]}
             />
           </div>
+
+          <div className="grid content-start gap-2 lg:row-span-3 lg:grid-rows-subgrid">
+            <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
+              <span className="label mb-0">เริ่มลงทุนเมื่อ</span>
+            </div>
+            <StartDate f={f} set={set} />
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              ครบกำหนด {periodLabel(f, f.years)}
+            </p>
+          </div>
         </div>
       </Section>
 
@@ -366,6 +412,7 @@ function CompoundView({ f, set, growth, annualContribution, colors }) {
               <DataTable
                 columns={[
                   { key: 'year', label: 'ปีที่' },
+                  { key: 'when', label: 'ถึงเดือน', render: (r) => periodLabel(f, r.year) },
                   { key: 'invested', label: 'เงินที่ใส่สะสม', align: 'right', render: (r) => fmt0(r.invested) },
                   {
                     key: 'interest',
@@ -402,7 +449,7 @@ function RetireView({ f, set, plan, needShares, needMonthly, colors }) {
   const gap = f.targetMonthly - plan.lastMonthly
 
   const chartData = plan.rows.map((r) => ({
-    label: r.label,
+    label: calendarYear(f, r.year),
     own: Math.round(r.ownPrincipal),
     grown: Math.round(Math.max(0, r.shares - r.ownPrincipal)),
   }))
@@ -410,8 +457,11 @@ function RetireView({ f, set, plan, needShares, needMonthly, colors }) {
   return (
     <div className="space-y-4">
       <Section title="เป้าหมายหลังเกษียณ" subtitle="อยากใช้เงินจากปันผลเดือนละเท่าไร โดยไม่ต้องแตะเงินต้น">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="อายุตอนนี้">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="เริ่มออมเมื่อ" hint={`ครบกำหนด ${periodLabel(f, f.saveYears)}`}>
+            <StartDate f={f} set={set} />
+          </Field>
+          <Field label="อายุตอนนี้" hint="ใส่ 0 ถ้าไม่อยากคิดเป็นอายุ">
             <NumberBox value={f.age} onChange={set('age')} suffix="ปี" max={100} />
           </Field>
           <Field label="อยากได้ปันผลเดือนละ (บาท)">
@@ -502,7 +552,10 @@ function RetireView({ f, set, plan, needShares, needMonthly, colors }) {
             : '!border-l-4 !border-l-rose-500'
         }
         title="ผลวิเคราะห์"
-        subtitle={`ออม ${f.saveYears} ปี — ตอนนั้นคุณอายุ ${plan.endAge ?? '—'} ปี`}
+        subtitle={
+          `ออม ${f.saveYears} ปี ถึง ${periodLabel(f, f.saveYears)}` +
+          (plan.endAge ? ` — ตอนนั้นคุณอายุ ${plan.endAge} ปี` : '')
+        }
       >
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 text-sm">
           <span className="text-slate-500 dark:text-slate-400">
@@ -585,6 +638,7 @@ function RetireView({ f, set, plan, needShares, needMonthly, colors }) {
               <DataTable
                 columns={[
                   { key: 'year', label: 'สิ้นปีที่' },
+                  { key: 'when', label: 'เดือน/ปี', render: (r) => periodLabel(f, r.year) },
                   { key: 'age', label: 'อายุ', align: 'right', render: (r) => (r.age ? fmt0(r.age) : '—') },
                   { key: 'monthly', label: 'ส่ง/เดือน', align: 'right', render: (r) => fmt0(r.monthly) },
                   { key: 'ownPrincipal', label: 'เงินต้นสะสม', align: 'right', render: (r) => fmt0(r.ownPrincipal) },
